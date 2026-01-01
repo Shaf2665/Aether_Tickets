@@ -33,6 +33,8 @@ class TicketBot(commands.Bot):
         """Called when the bot is starting up."""
         # Load ticket commands
         await self.load_extension("commands.ticket")
+        # Load setup commands
+        await self.load_extension("commands.setup")
         
         # Add persistent view for ticket button
         self.add_view(TicketButtonView(self))
@@ -57,7 +59,39 @@ class TicketBot(commands.Bot):
         self.db.init_database()
         print("Database initialized")
         
-        # Send ticket panel if channel is configured
+        # Load panels from guild configs (v1.3)
+        for guild in self.guilds:
+            config = self.db.get_guild_config(str(guild.id))
+            if config:
+                try:
+                    panel_channel = guild.get_channel(int(config.get('panel_channel_id', 0)))
+                    if panel_channel:
+                        # Check if panel already exists
+                        panel_exists = False
+                        async for message in panel_channel.history(limit=10):
+                            if message.author == self.user and message.embeds:
+                                panel_exists = True
+                                break
+                        
+                        if not panel_exists:
+                            # Create panel
+                            ping_role = None
+                            if config.get('ping_role_id'):
+                                ping_role = guild.get_role(int(config['ping_role_id']))
+                            
+                            from utils.embeds import create_custom_panel_embed
+                            embed = create_custom_panel_embed(
+                                title=config.get('panel_title'),
+                                description=config.get('panel_description'),
+                                ping_role=ping_role
+                            )
+                            view = TicketButtonView(self)
+                            await panel_channel.send(embed=embed, view=view)
+                            print(f"Ticket panel created in {guild.name} - {panel_channel.name}")
+                except Exception as e:
+                    print(f"Error creating panel for {guild.name}: {e}")
+        
+        # Fallback: Send ticket panel if .env is configured (backward compatibility)
         if Config.TICKET_CHANNEL_ID:
             try:
                 channel = self.get_channel(Config.TICKET_CHANNEL_ID)
@@ -72,7 +106,7 @@ class TicketBot(commands.Bot):
                     embed = create_ticket_panel_embed()
                     view = TicketButtonView(self)
                     await channel.send(embed=embed, view=view)
-                    print(f"Ticket panel sent to {channel.name}")
+                    print(f"Ticket panel sent to {channel.name} (from .env config)")
             except Exception as e:
                 print(f"Error sending ticket panel: {e}")
     
@@ -99,9 +133,23 @@ class TicketBot(commands.Bot):
                 )
                 return
             
+            # Get guild config (v1.3) or fallback to .env
+            guild_config = self.db.get_guild_config(str(guild.id))
             category = None
-            if Config.TICKET_CATEGORY_ID:
-                category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
+            ping_role_id = None
+            support_role_id = None
+            
+            if guild_config:
+                # Use guild config
+                if guild_config.get('ticket_category_id'):
+                    category = discord.utils.get(guild.categories, id=int(guild_config['ticket_category_id']))
+                ping_role_id = guild_config.get('ping_role_id')
+                support_role_id = guild_config.get('support_role_id')
+            else:
+                # Fallback to .env config
+                if Config.TICKET_CATEGORY_ID:
+                    category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
+                support_role_id = str(Config.SUPPORT_ROLE_ID) if Config.SUPPORT_ROLE_ID else None
             
             # Create channel name
             username = interaction.user.name.lower().replace(" ", "-")
@@ -124,8 +172,8 @@ class TicketBot(commands.Bot):
             }
             
             # Add support role if configured
-            if Config.SUPPORT_ROLE_ID:
-                support_role = guild.get_role(Config.SUPPORT_ROLE_ID)
+            if support_role_id:
+                support_role = guild.get_role(int(support_role_id))
                 if support_role:
                     overwrites[support_role] = discord.PermissionOverwrite(
                         view_channel=True,
@@ -157,7 +205,15 @@ class TicketBot(commands.Bot):
                 value=f"#{ticket_id}",
                 inline=False
             )
-            await channel.send(embed=embed)
+            
+            # Ping role if configured (v1.3)
+            ping_message = ""
+            if ping_role_id:
+                ping_role = guild.get_role(int(ping_role_id))
+                if ping_role:
+                    ping_message = f"{ping_role.mention} "
+            
+            await channel.send(ping_message, embed=embed)
             
             # Respond to interaction
             await interaction.followup.send(

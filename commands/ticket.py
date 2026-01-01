@@ -66,9 +66,23 @@ class TicketCommands(commands.Cog):
                 )
                 return
             
+            # Get guild config (v1.3) or fallback to .env
+            guild_config = self.db.get_guild_config(str(guild.id))
             category = None
-            if Config.TICKET_CATEGORY_ID:
-                category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
+            ping_role_id = None
+            support_role_id = None
+            
+            if guild_config:
+                # Use guild config
+                if guild_config.get('ticket_category_id'):
+                    category = discord.utils.get(guild.categories, id=int(guild_config['ticket_category_id']))
+                ping_role_id = guild_config.get('ping_role_id')
+                support_role_id = guild_config.get('support_role_id')
+            else:
+                # Fallback to .env config
+                if Config.TICKET_CATEGORY_ID:
+                    category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
+                support_role_id = str(Config.SUPPORT_ROLE_ID) if Config.SUPPORT_ROLE_ID else None
             
             # Create channel name
             username = interaction.user.name.lower().replace(" ", "-")
@@ -91,8 +105,8 @@ class TicketCommands(commands.Cog):
             }
             
             # Add support role if configured
-            if Config.SUPPORT_ROLE_ID:
-                support_role = guild.get_role(Config.SUPPORT_ROLE_ID)
+            if support_role_id:
+                support_role = guild.get_role(int(support_role_id))
                 if support_role:
                     overwrites[support_role] = discord.PermissionOverwrite(
                         view_channel=True,
@@ -119,7 +133,15 @@ class TicketCommands(commands.Cog):
                 value=f"#{ticket_id}",
                 inline=False
             )
-            await channel.send(embed=embed)
+            
+            # Ping role if configured (v1.3)
+            ping_message = ""
+            if ping_role_id:
+                ping_role = guild.get_role(int(ping_role_id))
+                if ping_role:
+                    ping_message = f"{ping_role.mention} "
+            
+            await channel.send(ping_message, embed=embed)
             
             # Respond to interaction
             await interaction.response.send_message(

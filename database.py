@@ -51,8 +51,112 @@ class TicketDatabase:
         except sqlite3.OperationalError:
             pass  # Column already exists
         
+        # Initialize guild_config table (for v1.3)
+        self.init_guild_config_table()
+        
         conn.commit()
         conn.close()
+    
+    def init_guild_config_table(self):
+        """Initialize the guild_config table for storing per-guild settings."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS guild_config (
+                guild_id TEXT PRIMARY KEY,
+                panel_channel_id TEXT NOT NULL,
+                support_role_id TEXT,
+                ticket_category_id TEXT,
+                ping_role_id TEXT,
+                panel_title TEXT,
+                panel_description TEXT,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+    
+    def save_guild_config(self, guild_id: str, config_dict: dict) -> bool:
+        """Save or update guild configuration.
+        
+        Args:
+            guild_id: Discord guild ID
+            config_dict: Dictionary with configuration values
+            
+        Returns:
+            True if saved successfully
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        updated_at = datetime.datetime.utcnow().isoformat()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO guild_config 
+            (guild_id, panel_channel_id, support_role_id, ticket_category_id, 
+             ping_role_id, panel_title, panel_description, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            str(guild_id),
+            str(config_dict.get('panel_channel_id', '')),
+            str(config_dict.get('support_role_id', '')) if config_dict.get('support_role_id') else None,
+            str(config_dict.get('ticket_category_id', '')) if config_dict.get('ticket_category_id') else None,
+            str(config_dict.get('ping_role_id', '')) if config_dict.get('ping_role_id') else None,
+            config_dict.get('panel_title'),
+            config_dict.get('panel_description'),
+            updated_at
+        ))
+        
+        conn.commit()
+        conn.close()
+        return True
+    
+    def get_guild_config(self, guild_id: str) -> Optional[Dict]:
+        """Get guild configuration.
+        
+        Args:
+            guild_id: Discord guild ID
+            
+        Returns:
+            Dictionary with configuration or None if not found
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM guild_config WHERE guild_id = ?
+        """, (str(guild_id),))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return dict(row)
+        return None
+    
+    def delete_guild_config(self, guild_id: str) -> bool:
+        """Delete guild configuration.
+        
+        Args:
+            guild_id: Discord guild ID
+            
+        Returns:
+            True if deleted successfully
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM guild_config WHERE guild_id = ?
+        """, (str(guild_id),))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
     
     def create_ticket(self, channel_id: str, user_id: str) -> int:
         """Create a new ticket in the database.

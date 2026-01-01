@@ -242,3 +242,161 @@ def create_stats_embed(stats: dict, period_stats: dict = None) -> discord.Embed:
     embed.set_footer(text="Ticket System")
     return embed
 
+
+def create_custom_panel_embed(title: str = None, description: str = None, ping_role: discord.Role = None) -> discord.Embed:
+    """Create a customizable panel embed.
+    
+    Args:
+        title: Custom title for the panel (defaults to "Support Tickets")
+        description: Custom description for the panel
+        ping_role: Role to mention in the panel
+        
+    Returns:
+        Discord embed object
+    """
+    embed = discord.Embed(
+        title=title or "Support Tickets",
+        description=description or "Click the button below to create a support ticket.",
+        color=discord.Color.blue(),
+        timestamp=datetime.utcnow()
+    )
+    
+    if ping_role:
+        embed.add_field(
+            name="Support Team",
+            value=f"{ping_role.mention} will be notified when you create a ticket.",
+            inline=False
+        )
+    
+    embed.add_field(
+        name="How it works",
+        value="1. Click the button below\n"
+              "2. A private channel will be created for you\n"
+              "3. Describe your issue or question\n"
+              "4. A staff member will assist you\n"
+              "5. Use `/close` to close the ticket when done",
+        inline=False
+    )
+    embed.set_footer(text="Ticket System")
+    return embed
+
+
+def create_setup_embed(step: int, question: str) -> discord.Embed:
+    """Create an embed for setup instructions.
+    
+    Args:
+        step: Current step number
+        question: The question to ask
+        
+    Returns:
+        Discord embed object
+    """
+    embed = discord.Embed(
+        title=f"Setup - Step {step}",
+        description=question,
+        color=discord.Color.blue(),
+        timestamp=datetime.utcnow()
+    )
+    embed.add_field(
+        name="Note",
+        value="Type 'cancel' to abort the setup process.",
+        inline=False
+    )
+    embed.set_footer(text="Ticket System Setup")
+    return embed
+
+
+def create_config_view_embed(config: dict, guild: discord.Guild) -> discord.Embed:
+    """Create an embed showing current configuration.
+    
+    Args:
+        config: Configuration dictionary
+        guild: Discord guild object
+        
+    Returns:
+        Discord embed object
+    """
+    embed = discord.Embed(
+        title="Current Configuration",
+        description="Your ticket system configuration:",
+        color=discord.Color.green(),
+        timestamp=datetime.utcnow()
+    )
+    
+    # Panel Channel
+    panel_channel = guild.get_channel(int(config.get('panel_channel_id', 0)))
+    embed.add_field(
+        name="Panel Channel",
+        value=panel_channel.mention if panel_channel else "Not set",
+        inline=True
+    )
+    
+    # Ping Role
+    ping_role_id = config.get('ping_role_id')
+    if ping_role_id:
+        ping_role = guild.get_role(int(ping_role_id))
+        embed.add_field(
+            name="Ping Role",
+            value=ping_role.mention if ping_role else "Role not found",
+            inline=True
+        )
+    else:
+        embed.add_field(
+            name="Ping Role",
+            value="Not set",
+            inline=True
+        )
+    
+    # Support Role
+    support_role_id = config.get('support_role_id')
+    if support_role_id:
+        support_role = guild.get_role(int(support_role_id))
+        embed.add_field(
+            name="Support Role",
+            value=support_role.mention if support_role else "Role not found",
+            inline=True
+        )
+    else:
+        embed.add_field(
+            name="Support Role",
+            value="Not set",
+            inline=True
+        )
+    
+    # Category
+    category_id = config.get('ticket_category_id')
+    if category_id:
+        category = discord.utils.get(guild.categories, id=int(category_id))
+        embed.add_field(
+            name="Ticket Category",
+            value=category.name if category else "Category not found",
+            inline=True
+        )
+    else:
+        embed.add_field(
+            name="Ticket Category",
+            value="Not set",
+            inline=True
+        )
+    
+    # Custom Title
+    panel_title = config.get('panel_title')
+    if panel_title:
+        embed.add_field(
+            name="Panel Title",
+            value=panel_title,
+            inline=False
+        )
+    
+    # Custom Description
+    panel_description = config.get('panel_description')
+    if panel_description:
+        embed.add_field(
+            name="Panel Description",
+            value=panel_description[:1024] if len(panel_description) > 1024 else panel_description,
+            inline=False
+        )
+    
+    embed.set_footer(text="Ticket System")
+    return embed
+
