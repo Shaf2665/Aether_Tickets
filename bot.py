@@ -146,9 +146,12 @@ class TicketBot(commands.Bot):
             # Log to database
             ticket_id = self.db.create_ticket(str(channel.id), str(interaction.user.id))
             
+            # Get ticket data for embed
+            ticket_data = self.db.get_ticket_by_channel(str(channel.id))
+            
             # Send welcome message
             from utils.embeds import create_ticket_embed
-            embed = create_ticket_embed(interaction.user)
+            embed = create_ticket_embed(interaction.user, ticket_data)
             embed.add_field(
                 name="Ticket ID",
                 value=f"#{ticket_id}",

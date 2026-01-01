@@ -35,6 +35,22 @@ class TicketDatabase:
             )
         """)
         
+        # Migration: Add new columns if they don't exist (for v1.2)
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN claimed_by TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN claimed_at TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN close_reason TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
         conn.commit()
         conn.close()
     
@@ -64,11 +80,12 @@ class TicketDatabase:
         
         return ticket_id
     
-    def close_ticket(self, channel_id: str) -> bool:
+    def close_ticket(self, channel_id: str, reason: str = None) -> bool:
         """Close a ticket by channel ID.
         
         Args:
             channel_id: Discord channel ID
+            reason: Optional reason for closing the ticket
             
         Returns:
             True if ticket was closed, False if not found
@@ -80,9 +97,9 @@ class TicketDatabase:
         
         cursor.execute("""
             UPDATE tickets
-            SET status = 'closed', closed_at = ?
+            SET status = 'closed', closed_at = ?, close_reason = ?
             WHERE channel_id = ? AND status = 'open'
-        """, (closed_at, str(channel_id)))
+        """, (closed_at, reason, str(channel_id)))
         
         success = cursor.rowcount > 0
         conn.commit()
@@ -155,4 +172,166 @@ class TicketDatabase:
         """
         ticket = self.get_ticket_by_channel(channel_id)
         return ticket is not None
+    
+    def claim_ticket(self, channel_id: str, user_id: str) -> bool:
+        """Claim a ticket by channel ID.
+        
+        Args:
+            channel_id: Discord channel ID
+            user_id: Discord user ID of the staff member claiming the ticket
+            
+        Returns:
+            True if ticket was claimed, False if not found or already claimed
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Check if ticket exists and is open
+        ticket = self.get_ticket_by_channel(channel_id)
+        if not ticket or ticket['status'] != 'open' or ticket.get('claimed_by'):
+            conn.close()
+            return False
+        
+        claimed_at = datetime.datetime.utcnow().isoformat()
+        
+        cursor.execute("""
+            UPDATE tickets
+            SET claimed_by = ?, claimed_at = ?
+            WHERE channel_id = ? AND status = 'open' AND claimed_by IS NULL
+        """, (str(user_id), claimed_at, str(channel_id)))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def unclaim_ticket(self, channel_id: str) -> bool:
+        """Unclaim a ticket by channel ID.
+        
+        Args:
+            channel_id: Discord channel ID
+            
+        Returns:
+            True if ticket was unclaimed, False if not found
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE tickets
+            SET claimed_by = NULL, claimed_at = NULL
+            WHERE channel_id = ? AND status = 'open'
+        """, (str(channel_id),))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def get_claimed_tickets(self, user_id: str) -> List[Dict]:
+        """Get all tickets claimed by a user.
+        
+        Args:
+            user_id: Discord user ID
+            
+        Returns:
+            List of ticket dictionaries
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM tickets 
+            WHERE claimed_by = ? AND status = 'open'
+            ORDER BY claimed_at DESC
+        """, (str(user_id),))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_ticket_statistics(self) -> Dict:
+        """Get overall ticket statistics.
+        
+        Returns:
+            Dictionary with statistics
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Total tickets
+        cursor.execute("SELECT COUNT(*) as count FROM tickets")
+        total = cursor.fetchone()['count']
+        
+        # Open tickets
+        cursor.execute("SELECT COUNT(*) as count FROM tickets WHERE status = 'open'")
+        open_count = cursor.fetchone()['count']
+        
+        # Closed tickets
+        cursor.execute("SELECT COUNT(*) as count FROM tickets WHERE status = 'closed'")
+        closed_count = cursor.fetchone()['count']
+        
+        # Claimed tickets
+        cursor.execute("SELECT COUNT(*) as count FROM tickets WHERE status = 'open' AND claimed_by IS NOT NULL")
+        claimed_count = cursor.fetchone()['count']
+        
+        # Unclaimed tickets
+        cursor.execute("SELECT COUNT(*) as count FROM tickets WHERE status = 'open' AND claimed_by IS NULL")
+        unclaimed_count = cursor.fetchone()['count']
+        
+        conn.close()
+        
+        return {
+            'total': total,
+            'open': open_count,
+            'closed': closed_count,
+            'claimed': claimed_count,
+            'unclaimed': unclaimed_count
+        }
+    
+    def get_tickets_by_period(self, days: int) -> Dict:
+        """Get tickets created in the last N days.
+        
+        Args:
+            days: Number of days to look back
+            
+        Returns:
+            Dictionary with period statistics
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cutoff_date = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat()
+        
+        # Total in period
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets 
+            WHERE created_at >= ?
+        """, (cutoff_date,))
+        total = cursor.fetchone()['count']
+        
+        # Open in period
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets 
+            WHERE created_at >= ? AND status = 'open'
+        """, (cutoff_date,))
+        open_count = cursor.fetchone()['count']
+        
+        # Closed in period
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets 
+            WHERE created_at >= ? AND status = 'closed'
+        """, (cutoff_date,))
+        closed_count = cursor.fetchone()['count']
+        
+        conn.close()
+        
+        return {
+            'total': total,
+            'open': open_count,
+            'closed': closed_count
+        }
 

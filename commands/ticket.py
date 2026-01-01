@@ -8,7 +8,10 @@ from utils.embeds import (
     create_close_embed,
     create_error_embed,
     create_permission_error_embed,
-    create_not_ticket_error_embed
+    create_not_ticket_error_embed,
+    create_claim_embed,
+    create_unclaim_embed,
+    create_stats_embed
 )
 from config import Config
 
@@ -19,6 +22,25 @@ class TicketCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = TicketDatabase()
+    
+    def is_staff(self, user: discord.Member) -> bool:
+        """Check if a user is staff (has support role or is admin).
+        
+        Args:
+            user: Discord member to check
+            
+        Returns:
+            True if user is staff
+        """
+        if user.guild_permissions.administrator:
+            return True
+        
+        if Config.SUPPORT_ROLE_ID:
+            support_role = user.guild.get_role(Config.SUPPORT_ROLE_ID)
+            if support_role and support_role in user.roles:
+                return True
+        
+        return False
     
     @app_commands.command(name="ticket", description="Create a new support ticket")
     async def create_ticket(self, interaction: discord.Interaction):
@@ -90,7 +112,8 @@ class TicketCommands(commands.Cog):
             ticket_id = self.db.create_ticket(str(channel.id), str(interaction.user.id))
             
             # Send welcome message
-            embed = create_ticket_embed(interaction.user)
+            ticket_data = self.db.get_ticket_by_channel(str(channel.id))
+            embed = create_ticket_embed(interaction.user, ticket_data)
             embed.add_field(
                 name="Ticket ID",
                 value=f"#{ticket_id}",
@@ -118,7 +141,8 @@ class TicketCommands(commands.Cog):
             )
     
     @app_commands.command(name="close", description="Close the current ticket")
-    async def close_ticket(self, interaction: discord.Interaction):
+    @app_commands.describe(reason="Optional reason for closing the ticket")
+    async def close_ticket(self, interaction: discord.Interaction, reason: str = None):
         """Close the current ticket channel."""
         try:
             # Check if this is a ticket channel
@@ -157,11 +181,11 @@ class TicketCommands(commands.Cog):
                 )
                 return
             
-            # Update database
-            self.db.close_ticket(str(interaction.channel.id))
+            # Update database with reason
+            self.db.close_ticket(str(interaction.channel.id), reason)
             
             # Send closing message
-            embed = create_close_embed(interaction.user)
+            embed = create_close_embed(interaction.user, reason)
             await interaction.response.send_message(embed=embed)
             
             # Wait a bit then delete channel
@@ -176,6 +200,169 @@ class TicketCommands(commands.Cog):
                 ),
                 ephemeral=True
             )
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=create_error_embed(f"An error occurred: {str(e)}"),
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="claim", description="Claim the current ticket (staff only)")
+    async def claim_ticket(self, interaction: discord.Interaction):
+        """Claim the current ticket."""
+        try:
+            # Check if this is a ticket channel
+            if not self.db.is_ticket_channel(str(interaction.channel.id)):
+                await interaction.response.send_message(
+                    embed=create_not_ticket_error_embed(),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if user is staff
+            if not self.is_staff(interaction.user):
+                await interaction.response.send_message(
+                    embed=create_permission_error_embed(),
+                    ephemeral=True
+                )
+                return
+            
+            # Get ticket info
+            ticket = self.db.get_ticket_by_channel(str(interaction.channel.id))
+            if not ticket:
+                await interaction.response.send_message(
+                    embed=create_error_embed("Ticket not found in database."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if ticket is open
+            if ticket['status'] != 'open':
+                await interaction.response.send_message(
+                    embed=create_error_embed("You can only claim open tickets."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if already claimed
+            if ticket.get('claimed_by'):
+                await interaction.response.send_message(
+                    embed=create_error_embed("This ticket is already claimed by another staff member."),
+                    ephemeral=True
+                )
+                return
+            
+            # Claim the ticket
+            success = self.db.claim_ticket(str(interaction.channel.id), str(interaction.user.id))
+            if not success:
+                await interaction.response.send_message(
+                    embed=create_error_embed("Failed to claim ticket. Please try again."),
+                    ephemeral=True
+                )
+                return
+            
+            # Send confirmation
+            embed = create_claim_embed(interaction.user, ticket['ticket_id'])
+            await interaction.response.send_message(embed=embed)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=create_error_embed(f"An error occurred: {str(e)}"),
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="unclaim", description="Unclaim the current ticket (staff only)")
+    async def unclaim_ticket(self, interaction: discord.Interaction):
+        """Unclaim the current ticket."""
+        try:
+            # Check if this is a ticket channel
+            if not self.db.is_ticket_channel(str(interaction.channel.id)):
+                await interaction.response.send_message(
+                    embed=create_not_ticket_error_embed(),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if user is staff
+            if not self.is_staff(interaction.user):
+                await interaction.response.send_message(
+                    embed=create_permission_error_embed(),
+                    ephemeral=True
+                )
+                return
+            
+            # Get ticket info
+            ticket = self.db.get_ticket_by_channel(str(interaction.channel.id))
+            if not ticket:
+                await interaction.response.send_message(
+                    embed=create_error_embed("Ticket not found in database."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if ticket is claimed
+            if not ticket.get('claimed_by'):
+                await interaction.response.send_message(
+                    embed=create_error_embed("This ticket is not claimed."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if user is the claimer or admin
+            is_claimer = str(interaction.user.id) == ticket['claimed_by']
+            is_admin = interaction.user.guild_permissions.administrator
+            
+            if not (is_claimer or is_admin):
+                await interaction.response.send_message(
+                    embed=create_error_embed("You can only unclaim tickets that you claimed, or you must be an admin."),
+                    ephemeral=True
+                )
+                return
+            
+            # Unclaim the ticket
+            success = self.db.unclaim_ticket(str(interaction.channel.id))
+            if not success:
+                await interaction.response.send_message(
+                    embed=create_error_embed("Failed to unclaim ticket. Please try again."),
+                    ephemeral=True
+                )
+                return
+            
+            # Send confirmation
+            embed = create_unclaim_embed(interaction.user, ticket['ticket_id'])
+            await interaction.response.send_message(embed=embed)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=create_error_embed(f"An error occurred: {str(e)}"),
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="ticketstats", description="View ticket statistics (admin only)")
+    async def ticket_stats(self, interaction: discord.Interaction):
+        """Show ticket statistics."""
+        try:
+            # Check if user is admin
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message(
+                    embed=create_permission_error_embed(),
+                    ephemeral=True
+                )
+                return
+            
+            # Get overall statistics
+            stats = self.db.get_ticket_statistics()
+            
+            # Get period statistics
+            period_stats = {
+                'today': self.db.get_tickets_by_period(1),
+                'week': self.db.get_tickets_by_period(7),
+                'month': self.db.get_tickets_by_period(30)
+            }
+            
+            # Create and send embed
+            embed = create_stats_embed(stats, period_stats)
+            await interaction.response.send_message(embed=embed)
+            
         except Exception as e:
             await interaction.response.send_message(
                 embed=create_error_embed(f"An error occurred: {str(e)}"),
