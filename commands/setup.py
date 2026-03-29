@@ -304,7 +304,45 @@ class SetupCommands(commands.Cog):
                 embed = create_setup_embed(
                     2,
                     f"Great! Panel channel set to {channel.mention}.\n\n"
-                    "Which role should be pinged when tickets are created?\n\n"
+                    "Which role should **staff** use for tickets?\n\n"
+                    "Members with this role can see new tickets and use `/claim` and `/unclaim`.\n\n"
+                    "**How to provide:**\n"
+                    "• Mention the role: `@Support Team`\n"
+                    "• Or provide the role ID (a long number)\n"
+                    "• Or type `none` if only server administrators should use those commands"
+                )
+                await self.safe_send(message, embed=embed)
+            
+            elif step == 2:  # Support Role (staff)
+                if message.content.lower().strip() in ['none', 'skip', '']:
+                    data['support_role_id'] = None
+                else:
+                    role_id = self.extract_role_id(message.content)
+                    if not role_id:
+                        await self.safe_send(
+                            message,
+                            embed=create_error_embed(
+                                "Invalid role. Please mention a role (e.g., @Support Team) or type 'none' to skip."
+                            )
+                        )
+                        return
+                    
+                    role = guild.get_role(role_id)
+                    if not role:
+                        await self.safe_send(
+                            message,
+                            embed=create_error_embed("Role not found. Please try again or type 'none' to skip.")
+                        )
+                        return
+                    
+                    data['support_role_id'] = str(role_id)
+                
+                session['step'] = 3
+                
+                embed = create_setup_embed(
+                    3,
+                    "Support role set.\n\n"
+                    "Which role should be **pinged** when tickets are created?\n\n"
                     "**How to provide:**\n"
                     "• Mention the role: `@Support Team`\n"
                     "• Or provide the role ID (a long number)\n"
@@ -312,7 +350,7 @@ class SetupCommands(commands.Cog):
                 )
                 await self.safe_send(message, embed=embed)
             
-            elif step == 2:  # Ping Role
+            elif step == 3:  # Ping Role
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['ping_role_id'] = None
                 else:
@@ -336,11 +374,11 @@ class SetupCommands(commands.Cog):
                     
                     data['ping_role_id'] = str(role_id)
                 
-                session['step'] = 3
+                session['step'] = 4
                 
                 embed = create_setup_embed(
-                    3,
-                    f"Perfect! Ping role set.\n\n"
+                    4,
+                    f"Ping role set.\n\n"
                     "Which category should tickets be created in?\n\n"
                     "**Important:** The category must already exist in your server.\n"
                     "• Type the **category name** (e.g., `Tickets` or `Support`)\n"
@@ -350,7 +388,7 @@ class SetupCommands(commands.Cog):
                 )
                 await self.safe_send(message, embed=embed)
             
-            elif step == 3:  # Category
+            elif step == 4:  # Category
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['ticket_category_id'] = None
                 else:
@@ -383,17 +421,17 @@ class SetupCommands(commands.Cog):
                     
                     data['ticket_category_id'] = str(category_id)
                 
-                session['step'] = 4
+                session['step'] = 5
                 
                 embed = create_setup_embed(
-                    4,
+                    5,
                     "Category set!\n\n"
                     "Would you like to customize the panel title?\n"
                     "Type a custom title or 'none' to use the default."
                 )
                 await self.safe_send(message, embed=embed)
             
-            elif step == 4:  # Panel Title
+            elif step == 5:  # Panel Title
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['panel_title'] = None
                 else:
@@ -406,17 +444,17 @@ class SetupCommands(commands.Cog):
                         return
                     data['panel_title'] = title
                 
-                session['step'] = 5
+                session['step'] = 6
                 
                 embed = create_setup_embed(
-                    5,
+                    6,
                     "Title set!\n\n"
                     "Would you like to customize the panel description?\n"
                     "Type a custom description or 'none' to use the default."
                 )
                 await self.safe_send(message, embed=embed)
             
-            elif step == 5:  # Panel Description
+            elif step == 6:  # Panel Description
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['panel_description'] = None
                 else:

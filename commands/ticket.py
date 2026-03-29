@@ -26,6 +26,8 @@ class TicketCommands(commands.Cog):
     def is_staff(self, user: discord.Member) -> bool:
         """Check if a user is staff (has support role or is admin).
         
+        Guild config support role is checked first; falls back to SUPPORT_ROLE_ID from .env.
+        
         Args:
             user: Discord member to check
             
@@ -34,6 +36,12 @@ class TicketCommands(commands.Cog):
         """
         if user.guild_permissions.administrator:
             return True
+        
+        guild_config = self.db.get_guild_config(str(user.guild.id))
+        if guild_config and guild_config.get('support_role_id'):
+            support_role = user.guild.get_role(int(guild_config['support_role_id']))
+            if support_role and support_role in user.roles:
+                return True
         
         if Config.SUPPORT_ROLE_ID:
             support_role = user.guild.get_role(Config.SUPPORT_ROLE_ID)
