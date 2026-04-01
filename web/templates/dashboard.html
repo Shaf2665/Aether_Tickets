@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Aether Tickets{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="bi bi-graph-up"></i> Dashboard
+            </h1>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="card-title mb-1">Total Tickets</p>
+                            <h2 class="mb-0">{{ stats.total }}</h2>
+                        </div>
+                        <i class="bi bi-ticket-perforated fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="card-title mb-1">Open Tickets</p>
+                            <h2 class="mb-0">{{ stats.open }}</h2>
+                        </div>
+                        <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="card-title mb-1">Unclaimed</p>
+                            <h2 class="mb-0">{{ stats.unclaimed }}</h2>
+                        </div>
+                        <i class="bi bi-person-plus fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="card-title mb-1">Closed Tickets</p>
+                            <h2 class="mb-0">{{ stats.closed }}</h2>
+                        </div>
+                        <i class="bi bi-check-circle fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <!-- Categories Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pie-chart"></i> Tickets by Category
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Status Overview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <p class="text-muted mb-2">Open</p>
+                            <h3 class="text-success">{{ stats.open }}</h3>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-2">Closed</p>
+                            <h3 class="text-danger">{{ stats.closed }}</h3>
+                        </div>
+                    </div>
+                    <div class="row mt-3 text-center">
+                        <div class="col-6">
+                            <p class="text-muted mb-2">Claimed</p>
+                            <h3 class="text-info">{{ stats.claimed }}</h3>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-2">Unclaimed</p>
+                            <h3 class="text-warning">{{ stats.unclaimed }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Tickets -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> Recent Tickets
+                    </h5>
+                    <a href="{{ url_for('tickets.list_tickets') }}" class="btn btn-sm btn-primary">View All</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Created By</th>
+                                <th>Status</th>
+                                <th>Claimed By</th>
+                                <th>Created</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ticket in recent_tickets %}
+                            <tr>
+                                <td>
+                                    <strong>#{{ ticket.ticket_id }}</strong>
+                                </td>
+                                <td>
+                                    <code class="text-muted">{{ ticket.user_id }}</code>
+                                </td>
+                                <td>
+                                    {% if ticket.status == 'open' %}
+                                    <span class="badge bg-success">Open</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Closed</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ticket.claimed_by %}
+                                    <code class="text-muted">{{ ticket.claimed_by }}</code>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ ticket.created_at[:10] }}</small>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('tickets.view_ticket', ticket_id=ticket.ticket_id) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    No tickets yet
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js initialization -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Category chart
+    const categoryData = {{ stats.categories | tojson }};
+    const categoryLabels = Object.keys(categoryData);
+    const categoryCounts = Object.values(categoryData);
+
+    if (categoryLabels.length > 0) {
+        const ctx = document.getElementById('categoryChart');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: categoryLabels,
+                datasets: [{
+                    data: categoryCounts,
+                    backgroundColor: [
+                        '#667eea',
+                        '#764ba2',
+                        '#f093fb',
+                        '#4facfe',
+                        '#00f2fe',
+                        '#43e97b',
+                        '#fa709a',
+                        '#fee140'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

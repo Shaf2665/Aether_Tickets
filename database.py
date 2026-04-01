@@ -53,7 +53,28 @@ class TicketDatabase:
         
         # Initialize guild_config table (for v1.3)
         self.init_guild_config_table()
-        
+
+        # Initialize guild_ticket_categories table (for v1.5)
+        self.init_guild_ticket_categories_table()
+
+        # Add guild_id column to tickets table if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN guild_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        # Add guild_ticket_category_id column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN guild_ticket_category_id INTEGER")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        # Add initial_description column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN initial_description TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
         conn.commit()
         conn.close()
     
@@ -61,7 +82,7 @@ class TicketDatabase:
         """Initialize the guild_config table for storing per-guild settings."""
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS guild_config (
                 guild_id TEXT PRIMARY KEY,
@@ -74,7 +95,26 @@ class TicketDatabase:
                 updated_at TEXT NOT NULL
             )
         """)
-        
+
+        conn.commit()
+        conn.close()
+
+    def init_guild_ticket_categories_table(self):
+        """Initialize the guild_ticket_categories table for ticket types."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS guild_ticket_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id TEXT NOT NULL,
+                label TEXT NOT NULL,
+                discord_category_id TEXT,
+                sort_order INTEGER DEFAULT 0,
+                UNIQUE(guild_id, label)
+            )
+        """)
+
         conn.commit()
         conn.close()
     
@@ -432,10 +472,194 @@ class TicketDatabase:
         closed_count = cursor.fetchone()['count']
         
         conn.close()
-        
+
         return {
             'total': total,
             'open': open_count,
             'closed': closed_count
         }
+
+    def get_guild_tickets(self, guild_id: str, status: str = None, limit: int = 25, offset: int = 0) -> List[Dict]:
+        """Get all tickets for a guild with optional filtering.
+
+        Args:
+            guild_id: Discord guild ID
+            status: Optional status filter ('open' or 'closed')
+            limit: Number of results to return
+            offset: Pagination offset
+
+        Returns:
+            List of ticket dictionaries
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if status:
+            cursor.execute("""
+                SELECT * FROM tickets
+                WHERE guild_id = ? AND status = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (str(guild_id), status, limit, offset))
+        else:
+            cursor.execute("""
+                SELECT * FROM tickets
+                WHERE guild_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (str(guild_id), limit, offset))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
+
+    def get_guild_ticket_count(self, guild_id: str, status: str = None) -> int:
+        """Get count of tickets for a guild.
+
+        Args:
+            guild_id: Discord guild ID
+            status: Optional status filter
+
+        Returns:
+            Total count of tickets
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if status:
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM tickets
+                WHERE guild_id = ? AND status = ?
+            """, (str(guild_id), status))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM tickets
+                WHERE guild_id = ?
+            """, (str(guild_id),))
+
+        count = cursor.fetchone()['count']
+        conn.close()
+
+        return count
+
+    def get_guild_statistics(self, guild_id: str) -> Dict:
+        """Get statistics for a specific guild.
+
+        Args:
+            guild_id: Discord guild ID
+
+        Returns:
+            Dictionary with statistics
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Total tickets
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets WHERE guild_id = ?
+        """, (str(guild_id),))
+        total = cursor.fetchone()['count']
+
+        # Open tickets
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND status = 'open'
+        """, (str(guild_id),))
+        open_count = cursor.fetchone()['count']
+
+        # Closed tickets
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND status = 'closed'
+        """, (str(guild_id),))
+        closed_count = cursor.fetchone()['count']
+
+        # Claimed tickets
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND status = 'open' AND claimed_by IS NOT NULL
+        """, (str(guild_id),))
+        claimed_count = cursor.fetchone()['count']
+
+        # Unclaimed tickets
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND status = 'open' AND claimed_by IS NULL
+        """, (str(guild_id),))
+        unclaimed_count = cursor.fetchone()['count']
+
+        # Tickets by category
+        cursor.execute("""
+            SELECT gtc.label, COUNT(*) as count
+            FROM tickets t
+            LEFT JOIN guild_ticket_categories gtc ON t.guild_ticket_category_id = gtc.id
+            WHERE t.guild_id = ?
+            GROUP BY t.guild_ticket_category_id
+        """, (str(guild_id),))
+        categories = {row['label'] or 'Uncategorized': row['count'] for row in cursor.fetchall()}
+
+        conn.close()
+
+        return {
+            'total': total,
+            'open': open_count,
+            'closed': closed_count,
+            'claimed': claimed_count,
+            'unclaimed': unclaimed_count,
+            'categories': categories
+        }
+
+    def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict]:
+        """Get a ticket by its ID.
+
+        Args:
+            ticket_id: The ticket ID
+
+        Returns:
+            Dictionary with ticket data or None
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM tickets WHERE ticket_id = ?
+        """, (ticket_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return dict(row)
+        return None
+
+    def update_ticket_status(self, ticket_id: int, status: str, reason: str = None) -> bool:
+        """Update ticket status.
+
+        Args:
+            ticket_id: The ticket ID
+            status: New status ('open' or 'closed')
+            reason: Optional close reason
+
+        Returns:
+            True if updated
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if status == 'closed':
+            closed_at = datetime.datetime.utcnow().isoformat()
+            cursor.execute("""
+                UPDATE tickets
+                SET status = ?, closed_at = ?, close_reason = ?
+                WHERE ticket_id = ?
+            """, (status, closed_at, reason, ticket_id))
+        else:
+            cursor.execute("""
+                UPDATE tickets
+                SET status = ?
+                WHERE ticket_id = ?
+            """, (status, ticket_id))
+
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        return success
 
