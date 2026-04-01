@@ -54,6 +54,12 @@ class TicketDatabase:
         # Initialize guild_config table (for v1.3)
         self.init_guild_config_table()
 
+        # Add closed_category_id column if it doesn't exist (for v1.8)
+        try:
+            cursor.execute("ALTER TABLE guild_config ADD COLUMN closed_category_id TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         # Initialize guild_ticket_categories table (for v1.5)
         self.init_guild_ticket_categories_table()
 
@@ -134,10 +140,10 @@ class TicketDatabase:
         updated_at = datetime.datetime.utcnow().isoformat()
         
         cursor.execute("""
-            INSERT OR REPLACE INTO guild_config 
-            (guild_id, panel_channel_id, support_role_id, ticket_category_id, 
-             ping_role_id, panel_title, panel_description, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO guild_config
+            (guild_id, panel_channel_id, support_role_id, ticket_category_id,
+             ping_role_id, panel_title, panel_description, closed_category_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             str(guild_id),
             str(config_dict.get('panel_channel_id', '')),
@@ -146,6 +152,7 @@ class TicketDatabase:
             str(config_dict.get('ping_role_id', '')) if config_dict.get('ping_role_id') else None,
             config_dict.get('panel_title'),
             config_dict.get('panel_description'),
+            str(config_dict.get('closed_category_id', '')) if config_dict.get('closed_category_id') else None,
             updated_at
         ))
         

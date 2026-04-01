@@ -47,8 +47,17 @@ def _is_staff(bot: commands.Bot, user: discord.Member) -> bool:
     return False
 
 
-async def _get_or_create_closed_category(guild: discord.Guild) -> Optional[discord.CategoryChannel]:
-    """Find or create the 'Closed Tickets' category (admin + bot eyes only)."""
+async def _get_or_create_closed_category(
+    bot: commands.Bot, guild: discord.Guild
+) -> Optional[discord.CategoryChannel]:
+    """Return the configured closed category, or find/create 'Closed Tickets'."""
+    guild_config = bot.db.get_guild_config(str(guild.id))
+    if guild_config and guild_config.get("closed_category_id"):
+        cat = discord.utils.get(guild.categories, id=int(guild_config["closed_category_id"]))
+        if cat:
+            return cat
+
+    # Fallback: find by name or create
     category = discord.utils.get(guild.categories, name="Closed Tickets")
     if category:
         return category
@@ -96,7 +105,7 @@ async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, re
     # Move to Closed Tickets category and lock from everyone except admins + bot
     channel = interaction.channel
     guild = interaction.guild
-    closed_category = await _get_or_create_closed_category(guild)
+    closed_category = await _get_or_create_closed_category(bot, guild)
 
     new_overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
