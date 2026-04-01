@@ -3,13 +3,20 @@ import discord
 from datetime import datetime
 
 
-def create_ticket_embed(user: discord.Member, ticket_data: dict = None) -> discord.Embed:
+def create_ticket_embed(
+    user: discord.Member,
+    ticket_data: dict = None,
+    category_label: str = None,
+    initial_description: str = None,
+) -> discord.Embed:
     """Create an embed for when a ticket is created.
-    
+
     Args:
         user: The user who created the ticket
         ticket_data: Optional ticket data dictionary to show claim status
-        
+        category_label: Optional ticket category name
+        initial_description: Optional description provided by the user
+
     Returns:
         Discord embed object
     """
@@ -19,21 +26,26 @@ def create_ticket_embed(user: discord.Member, ticket_data: dict = None) -> disco
         color=discord.Color.green(),
         timestamp=datetime.utcnow()
     )
+
+    if category_label:
+        embed.add_field(name="Category", value=category_label, inline=True)
+
+    if initial_description:
+        embed.add_field(
+            name="Description",
+            value=initial_description[:1024],
+            inline=False,
+        )
+
     embed.add_field(
         name="Instructions",
-        value="Please describe your issue or question. A staff member will assist you shortly.\n\n"
-              "Use `/close` to close this ticket when your issue is resolved.",
-        inline=False
+        value="A staff member will assist you shortly.\n\nUse `/close` to close this ticket when your issue is resolved.",
+        inline=False,
     )
-    
-    # Show claim status if ticket is claimed
+
     if ticket_data and ticket_data.get('claimed_by'):
-        embed.add_field(
-            name="Status",
-            value=f"✅ Claimed by staff",
-            inline=True
-        )
-    
+        embed.add_field(name="Status", value="✅ Claimed by staff", inline=True)
+
     embed.set_footer(text="Ticket System")
     return embed
 
