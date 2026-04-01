@@ -6,7 +6,7 @@ import asyncio
 from config import Config
 from database import TicketDatabase
 from utils.embeds import create_ticket_panel_embed, create_error_embed
-from utils.ticket_creation import begin_ticket_creation
+from utils.ticket_creation import begin_ticket_creation, TicketActionView
 
 
 # Validate configuration on import
@@ -38,8 +38,9 @@ class TicketBot(commands.Bot):
         # Load category commands
         await self.load_extension("commands.categories")
         
-        # Add persistent view for ticket button
+        # Add persistent views so buttons survive restarts
         self.add_view(TicketButtonView(self))
+        self.add_view(TicketActionView(self))
         
         # Sync commands
         if Config.GUILD_ID:

@@ -5,8 +5,15 @@ from typing import Optional, List, Dict
 import discord
 from discord.ext import commands
 
+import asyncio
+
 from config import Config
-from utils.embeds import create_error_embed, create_ticket_embed
+from utils.embeds import (
+    create_error_embed,
+    create_ticket_embed,
+    create_claim_embed,
+    create_close_embed,
+)
 
 
 def _slug_segment(text: str, max_len: int) -> str:
@@ -22,6 +29,124 @@ def make_ticket_channel_name(label: str, user: discord.abc.User) -> str:
     right = _slug_segment(getattr(user, "name", "user") or "user", 50)
     name = f"{left}-{right}"
     return name[:100]
+
+
+def _is_staff(bot: commands.Bot, user: discord.Member) -> bool:
+    """Check if a member is staff (mirrors TicketCommands.is_staff)."""
+    if user.guild_permissions.administrator:
+        return True
+    guild_config = bot.db.get_guild_config(str(user.guild.id))
+    if guild_config and guild_config.get("support_role_id"):
+        sr = user.guild.get_role(int(guild_config["support_role_id"]))
+        if sr and sr in user.roles:
+            return True
+    if Config.SUPPORT_ROLE_ID:
+        sr = user.guild.get_role(Config.SUPPORT_ROLE_ID)
+        if sr and sr in user.roles:
+            return True
+    return False
+
+
+async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, reason: str = None) -> None:
+    """Shared close logic used by the button and /close command."""
+    ticket = bot.db.get_ticket_by_channel(str(interaction.channel.id))
+    if not ticket:
+        await interaction.response.send_message(
+            embed=create_error_embed("Ticket not found in database."), ephemeral=True
+        )
+        return
+    if ticket["status"] == "closed":
+        await interaction.response.send_message(
+            embed=create_error_embed("This ticket is already closed."), ephemeral=True
+        )
+        return
+
+    is_owner = str(interaction.user.id) == ticket["user_id"]
+    if not (is_owner or _is_staff(bot, interaction.user)):
+        await interaction.response.send_message(
+            embed=create_error_embed("Only the ticket owner or staff can close this ticket."),
+            ephemeral=True,
+        )
+        return
+
+    bot.db.close_ticket(str(interaction.channel.id), reason)
+    embed = create_close_embed(interaction.user, reason)
+    await interaction.response.send_message(embed=embed)
+    await asyncio.sleep(5)
+    try:
+        await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
+    except discord.Forbidden:
+        pass
+
+
+class TicketCloseModal(discord.ui.Modal, title="Close Ticket"):
+    reason = discord.ui.TextInput(
+        label="Reason (optional)",
+        style=discord.TextStyle.paragraph,
+        placeholder="Why are you closing this ticket?",
+        required=False,
+        max_length=500,
+    )
+
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        reason = str(self.reason.value).strip() if self.reason.value else None
+        await _execute_close(self.bot, interaction, reason)
+
+
+class TicketActionView(discord.ui.View):
+    """Persistent view with Claim and Close buttons shown on every ticket welcome message."""
+
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+
+    @discord.ui.button(
+        label="Claim",
+        style=discord.ButtonStyle.success,
+        emoji="🙋",
+        custom_id="ticket_action_claim",
+    )
+    async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not isinstance(interaction.user, discord.Member) or not _is_staff(self.bot, interaction.user):
+            await interaction.response.send_message(
+                embed=create_error_embed("Only staff can claim tickets."), ephemeral=True
+            )
+            return
+
+        ticket = self.bot.db.get_ticket_by_channel(str(interaction.channel.id))
+        if not ticket:
+            await interaction.response.send_message(
+                embed=create_error_embed("Ticket not found."), ephemeral=True
+            )
+            return
+        if ticket.get("claimed_by"):
+            await interaction.response.send_message(
+                embed=create_error_embed("This ticket is already claimed."), ephemeral=True
+            )
+            return
+
+        success = self.bot.db.claim_ticket(str(interaction.channel.id), str(interaction.user.id))
+        if not success:
+            await interaction.response.send_message(
+                embed=create_error_embed("Failed to claim ticket. Please try again."), ephemeral=True
+            )
+            return
+
+        embed = create_claim_embed(interaction.user, ticket["ticket_id"])
+        await interaction.response.send_message(embed=embed)
+
+    @discord.ui.button(
+        label="Close",
+        style=discord.ButtonStyle.danger,
+        emoji="🔒",
+        custom_id="ticket_action_close",
+    )
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketCloseModal(self.bot))
 
 
 async def begin_ticket_creation(bot: commands.Bot, interaction: discord.Interaction) -> None:
@@ -256,7 +381,8 @@ async def finalize_ticket_creation(
         if pr:
             ping_message = f"{pr.mention} "
 
-    await channel.send(ping_message, embed=embed)
+    view = TicketActionView(bot)
+    await channel.send(ping_message, embed=embed, view=view)
     await interaction.followup.send(
         f"Ticket created! {channel.mention}",
         ephemeral=True,
