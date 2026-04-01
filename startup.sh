@@ -1,41 +1,40 @@
-#!/bin/bash
+#!/bin/sh
 # =============================================================================
 # Aether Tickets — Pterodactyl startup script
+# Uses /bin/sh (POSIX) for maximum compatibility with all Docker images.
 # =============================================================================
 # Runs every time the server starts:
-#   1. Clones the repo on first run  (no manual upload needed)
-#   2. Pulls latest code on restart  (auto-update)
-#   3. Installs Python dependencies
-#   4. Prints setup guide on first run
-#   5. Launches the bot / web dashboard
+#   1. Pulls latest code from GitHub (auto-update)
+#   2. Installs / upgrades Python dependencies
+#   3. Prints setup guide on first run
+#   4. Launches the bot / web dashboard
 # =============================================================================
 
 cd /home/container
 
 echo "============================================================"
-echo "         Aether Tickets — Starting up"
+echo "         Aether Tickets -- Starting up"
 echo "============================================================"
 
 # ---------------------------------------------------------------------------
-# 1. Git — clone on first run, pull on every restart
+# 1. Git auto-update
 # ---------------------------------------------------------------------------
 GIT_REPO="${GIT_REPO:-https://github.com/Shaf2665/Aether_Tickets.git}"
 GIT_BRANCH="${GIT_BRANCH:-main}"
 AUTO_UPDATE="${AUTO_UPDATE:-1}"
-FIRST_RUN=false
+FIRST_RUN=0
 
 if [ ! -d ".git" ]; then
-    FIRST_RUN=true
-    echo "[git] First run — cloning ${GIT_REPO} (branch: ${GIT_BRANCH})..."
+    FIRST_RUN=1
+    echo "[git] No repo found — cloning ${GIT_REPO} (branch: ${GIT_BRANCH})..."
     git clone --depth=1 --branch "${GIT_BRANCH}" "${GIT_REPO}" .
     if [ $? -ne 0 ]; then
-        echo "[git] ERROR: git clone failed."
-        echo "[git] Check that GIT_REPO is correct in the Startup tab."
+        echo "[git] ERROR: git clone failed. Check GIT_REPO and GIT_BRANCH in the Startup tab."
         exit 1
     fi
     echo "[git] Clone complete."
 else
-    if [ "$AUTO_UPDATE" = "1" ]; then
+    if [ "$AUTO_UPDATE" = "1" ] || [ "$AUTO_UPDATE" = "true" ]; then
         echo "[git] Pulling latest changes from ${GIT_BRANCH}..."
         git fetch origin "${GIT_BRANCH}" --depth=1
         git reset --hard "origin/${GIT_BRANCH}"
@@ -45,7 +44,7 @@ else
             echo "[git] Update complete."
         fi
     else
-        echo "[git] AUTO_UPDATE=0 — skipping git pull."
+        echo "[git] AUTO_UPDATE disabled — skipping git pull."
     fi
 fi
 
@@ -62,69 +61,63 @@ fi
 echo "[pip] Dependencies ready."
 
 # ---------------------------------------------------------------------------
-# 3. Print setup guide on first run
+# 3. Print setup guide on first run only
 # ---------------------------------------------------------------------------
 LAUNCH_MODE="${LAUNCH_MODE:-both}"
 
-if [ "$FIRST_RUN" = "true" ]; then
+if [ "$FIRST_RUN" = "1" ]; then
     echo ""
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║           🎉  AETHER TICKETS — FIRST RUN GUIDE           ║"
-    echo "╠══════════════════════════════════════════════════════════╣"
-    echo "║                                                          ║"
-    echo "║  The bot is now starting for the first time.             ║"
-    echo "║  Follow these steps to finish setup:                     ║"
-    echo "║                                                          ║"
-    echo "║  STEP 1 — Invite the bot to your Discord server          ║"
-    echo "║  ┌─────────────────────────────────────────────────────┐ ║"
-    echo "║  │ Go to: discord.com/developers/applications          │ ║"
-    echo "║  │ → Your App → OAuth2 → URL Generator                 │ ║"
-    echo "║  │ Scopes: bot + applications.commands                  │ ║"
-    echo "║  │ Permissions: Manage Channels, Manage Roles,          │ ║"
-    echo "║  │   Send Messages, Read Messages, Embed Links,         │ ║"
-    echo "║  │   Read Message History, Manage Messages              │ ║"
-    echo "║  │ Open the URL and invite the bot to your server.      │ ║"
-    echo "║  └─────────────────────────────────────────────────────┘ ║"
-    echo "║                                                          ║"
-    echo "║  STEP 2 — Configure the ticket system                    ║"
-    echo "║  ┌─────────────────────────────────────────────────────┐ ║"
-    echo "║  │ In your Discord server, run the slash command:      │ ║"
-    echo "║  │                                                     │ ║"
-    echo "║  │   /setup start                                      │ ║"
-    echo "║  │                                                     │ ║"
-    echo "║  │ The bot will guide you step by step to set up:      │ ║"
-    echo "║  │   • Ticket panel channel                            │ ║"
-    echo "║  │   • Staff / support role                            │ ║"
-    echo "║  │   • Ping role for new tickets                       │ ║"
-    echo "║  │   • Ticket category                                 │ ║"
-    echo "║  │   • Closed tickets category                         │ ║"
-    echo "║  │   • Custom panel title & description                │ ║"
-    echo "║  └─────────────────────────────────────────────────────┘ ║"
-    echo "║                                                          ║"
+    echo "============================================================"
+    echo "    AETHER TICKETS -- FIRST RUN SETUP GUIDE"
+    echo "============================================================"
+    echo ""
+    echo "  STEP 1 -- Invite the bot to your Discord server"
+    echo "  -------------------------------------------------"
+    echo "  Go to: discord.com/developers/applications"
+    echo "  -> Your App -> OAuth2 -> URL Generator"
+    echo "  Scopes: bot + applications.commands"
+    echo "  Permissions: Manage Channels, Manage Roles,"
+    echo "    Send Messages, Read Messages, Embed Links,"
+    echo "    Read Message History, Manage Messages"
+    echo "  Open the generated URL and invite the bot."
+    echo ""
+    echo "  STEP 2 -- Configure the ticket system"
+    echo "  -------------------------------------------------"
+    echo "  In your Discord server, run the slash command:"
+    echo ""
+    echo "    /setup start"
+    echo ""
+    echo "  The bot will guide you step by step to set up:"
+    echo "    - Ticket panel channel"
+    echo "    - Staff / support role"
+    echo "    - Ping role for new tickets"
+    echo "    - Ticket category"
+    echo "    - Closed tickets category"
+    echo "    - Custom panel title and description"
+    echo ""
     if [ "$LAUNCH_MODE" != "bot" ]; then
-    echo "║  STEP 3 — Access the web dashboard                       ║"
-    echo "║  ┌─────────────────────────────────────────────────────┐ ║"
-    echo "║  │ Open in your browser:                               │ ║"
-    echo "║  │   http://<your-node-address>:${PORT:-5000}                  │ ║"
-    echo "║  │ e.g. http://mtc.kovaihost.cloud:${PORT:-5000}               │ ║"
-    echo "║  └─────────────────────────────────────────────────────┘ ║"
-    echo "║                                                          ║"
+        echo "  STEP 3 -- Access the web dashboard"
+        echo "  -------------------------------------------------"
+        echo "  Open in your browser:"
+        echo "    http://<your-node-address>:${PORT:-2000}"
+        echo "  e.g. http://free-01.kovaihost.cloud:${PORT:-2000}"
+        echo ""
     fi
-    echo "║  USEFUL COMMANDS (run in your Discord server):           ║"
-    echo "║    /setup start    — Configure the ticket system         ║"
-    echo "║    /setup view     — View current configuration          ║"
-    echo "║    /setup refresh  — Refresh the ticket panel            ║"
-    echo "║    /setup reset    — Reset all configuration             ║"
-    echo "║    /categories add — Add a ticket category               ║"
-    echo "║    /ticket         — Create a new ticket                 ║"
-    echo "║    /close          — Close current ticket                ║"
-    echo "║    /claim          — Claim a ticket (staff only)         ║"
-    echo "║    /ticketstats    — View statistics (admin only)        ║"
-    echo "║                                                          ║"
-    echo "║  To UPDATE the bot in future: just Restart this server.  ║"
-    echo "║  Latest code is pulled from GitHub automatically.        ║"
-    echo "║                                                          ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
+    echo "  USEFUL COMMANDS (run in your Discord server):"
+    echo "    /setup start    -- Configure the ticket system"
+    echo "    /setup view     -- View current configuration"
+    echo "    /setup refresh  -- Refresh the ticket panel"
+    echo "    /setup reset    -- Reset all configuration"
+    echo "    /categories add -- Add a ticket category"
+    echo "    /ticket         -- Create a new ticket"
+    echo "    /close          -- Close current ticket"
+    echo "    /claim          -- Claim a ticket (staff only)"
+    echo "    /ticketstats    -- View statistics (admin only)"
+    echo ""
+    echo "  To UPDATE the bot in future: just Restart this server."
+    echo "  Latest code is pulled from GitHub automatically."
+    echo ""
+    echo "============================================================"
     echo ""
 fi
 
@@ -134,9 +127,8 @@ fi
 echo "============================================================"
 echo " Launch mode : ${LAUNCH_MODE}"
 if [ "$LAUNCH_MODE" != "bot" ]; then
-    echo " Web UI port : ${PORT:-5000}"
-    echo " Access URL  : http://<node-alias>:${PORT:-5000}"
-    echo "   e.g. http://mtc.kovaihost.cloud:${PORT:-5000}"
+    echo " Web UI port : ${PORT:-2000}"
+    echo " Access URL  : http://<node-alias>:${PORT:-2000}"
 fi
 echo "============================================================"
 
@@ -156,7 +148,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from web import create_app
 app = create_app()
-app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False, use_reloader=False)
+app.run(host='0.0.0.0', port=int(os.getenv('PORT', 2000)), debug=False, use_reloader=False)
 "
         ;;
     both|*)

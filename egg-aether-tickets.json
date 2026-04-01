@@ -15,7 +15,7 @@
     "Python 3.9": "ghcr.io/pterodactyl/yolks:python_3.9"
   },
   "file_denylist": [],
-  "startup": "bash startup.sh",
+  "startup": "/bin/sh startup.sh",
   "config": {
     "files": "{}",
     "startup": "{\"done\": \"has logged in\"}",
@@ -24,7 +24,7 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\n# ============================================================\n# Aether Tickets — Pterodactyl installation script\n# Runs ONCE when the server is first created.\n# ============================================================\napt-get update -y -q\napt-get install -y -q git curl\n\ncd /mnt/server\n\nGIT_REPO=\"${GIT_REPO:-https://github.com/Shaf2665/Aether_Tickets.git}\"\nGIT_BRANCH=\"${GIT_BRANCH:-main}\"\n\necho \"[install] Cloning ${GIT_REPO} (branch: ${GIT_BRANCH})...\"\ngit clone --depth=1 --branch \"${GIT_BRANCH}\" \"${GIT_REPO}\" .\n\nif [ $? -ne 0 ]; then\n  echo \"[install] ERROR: git clone failed. Check GIT_REPO and GIT_BRANCH.\"\n  exit 1\nfi\n\necho \"[install] Installing Python dependencies...\"\npip install -U pip --quiet\npip install -U -r requirements.txt --quiet\n\necho \"\"\necho \"============================================================\"\necho \" Installation complete!\"\necho \"============================================================\"\necho \" Next steps:\"\necho \"  1. Go to the Startup tab and fill in your Discord Bot Token\"\necho \"  2. Click START — the bot will launch automatically\"\necho \"  3. In your Discord server, run: /setup start\"\necho \"============================================================\"",
+      "script": "#!/bin/bash\n# ============================================================\n# Aether Tickets — Pterodactyl installation script\n# Runs ONCE when the server is first created.\n# ============================================================\napt-get update -y -q\napt-get install -y -q git curl python3-pip\n\ncd /mnt/server\n\nGIT_REPO=\"${GIT_REPO:-https://github.com/Shaf2665/Aether_Tickets.git}\"\nGIT_BRANCH=\"${GIT_BRANCH:-main}\"\n\necho \"[install] Cloning ${GIT_REPO} (branch: ${GIT_BRANCH})...\"\ngit clone --depth=1 --branch \"${GIT_BRANCH}\" \"${GIT_REPO}\" .\n\nif [ $? -ne 0 ]; then\n  echo \"[install] ERROR: git clone failed. Check GIT_REPO and GIT_BRANCH.\"\n  exit 1\nfi\n\necho \"[install] Installing Python dependencies...\"\npip3 install -U pip --quiet\npip3 install -U -r requirements.txt --quiet\n\necho \"\"\necho \"============================================================\"\necho \" Installation complete!\"\necho \"============================================================\"\necho \" Next steps:\"\necho \"  1. Go to the Startup tab and fill in your Discord Bot Token\"\necho \"  2. Click START -- the bot will launch automatically\"\necho \"  3. In your Discord server, run: /setup start\"\necho \"============================================================\"",
       "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
@@ -34,16 +34,6 @@
       "name": "📖 QUICK SETUP GUIDE — READ FIRST",
       "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below, then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready. For the web dashboard, also fill in the WEB DASHBOARD section below.",
       "env_variable": "_GUIDE_MAIN",
-      "default_value": "",
-      "user_viewable": true,
-      "user_editable": false,
-      "rules": "nullable|string",
-      "field_type": "text"
-    },
-    {
-      "name": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      "description": "─────────────────────────────────────────────────────",
-      "env_variable": "_DIVIDER_1",
       "default_value": "",
       "user_viewable": true,
       "user_editable": false,
@@ -72,7 +62,7 @@
     },
     {
       "name": "━━━━━━━━━━ 🌐 WEB DASHBOARD (optional) ━━━━━━━━━━",
-      "description": "The web dashboard lets you view and manage tickets from a browser at http://your-node:port. To enable it: (1) Set Launch Mode to 'both' below. (2) In Discord Developer Portal → your app → OAuth2, add a Redirect URL: http://YOUR-NODE-ADDRESS:YOUR-PORT/auth/callback (e.g. http://mtc.kovaihost.cloud:25056/auth/callback). (3) Fill in the 4 fields below. Leave all 4 blank and set Launch Mode to 'bot' if you only want the Discord bot.",
+      "description": "The web dashboard lets you view and manage tickets from a browser at http://your-node:port. To enable it: (1) Set Launch Mode to 'both' below. (2) In Discord Developer Portal → your app → OAuth2, add a Redirect URL: http://YOUR-NODE-ADDRESS:YOUR-PORT/auth/callback (e.g. http://free-01.kovaihost.cloud:2000/auth/callback). (3) Fill in the 4 fields below. Leave all 4 blank and set Launch Mode to 'bot' if you only want the Discord bot.",
       "env_variable": "_GUIDE_WEB",
       "default_value": "",
       "user_viewable": true,
@@ -112,7 +102,7 @@
     },
     {
       "name": "Discord OAuth Redirect URI",
-      "description": "The callback URL for Discord login. Must be: http://YOUR-NODE-ADDRESS:YOUR-PORT/auth/callback — replace with your actual node address and port shown in the panel. Example: http://mtc.kovaihost.cloud:25056/auth/callback — This EXACT URL must also be added in Discord Developer Portal → OAuth2 → Redirects.",
+      "description": "The callback URL for Discord login. Must be: http://YOUR-NODE-ADDRESS:YOUR-PORT/auth/callback — replace with your actual node address and port shown in the panel. Example: http://free-01.kovaihost.cloud:2000/auth/callback — This EXACT URL must also be added in Discord Developer Portal → OAuth2 → Redirects.",
       "env_variable": "DISCORD_REDIRECT_URI",
       "default_value": "",
       "user_viewable": true,
@@ -132,22 +122,22 @@
     },
     {
       "name": "Launch Mode",
-      "description": "What to run when the server starts:  'both' = Discord bot + web dashboard (default — requires web dashboard fields above to be filled)  'bot'  = Discord bot only (simplest, no web vars needed)  'web'  = Web dashboard only (bot must run separately)",
+      "description": "What to run when the server starts: 'bot' = Discord bot only (simplest, recommended to start). 'both' = Discord bot + web dashboard (requires web dashboard fields above). 'web' = Web dashboard only.",
       "env_variable": "LAUNCH_MODE",
-      "default_value": "both",
+      "default_value": "bot",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string|in:both,bot,web",
+      "rules": "required|string|in:bot,both,web",
       "field_type": "text"
     },
     {
       "name": "Auto Update on Restart",
-      "description": "Automatically pull the latest code from GitHub every time the server restarts. 1 = yes, always update (recommended). 0 = no, keep current files (use if you want to pin a specific version).",
+      "description": "Automatically pull the latest code from GitHub every time the server restarts. Enabled = always update (recommended). Disabled = keep current files.",
       "env_variable": "AUTO_UPDATE",
       "default_value": "1",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string|in:0,1",
+      "rules": "nullable|boolean",
       "field_type": "text"
     },
     {
