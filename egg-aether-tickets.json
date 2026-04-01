@@ -7,12 +7,12 @@
   "exported_at": "2026-04-01T00:00:00+00:00",
   "name": "Aether Tickets",
   "author": "aether@example.com",
-  "description": "Aether Tickets — Discord ticket bot with Flask web UI. Runs both the Discord bot and the web dashboard concurrently. Set LAUNCH_MODE=bot to run the bot only.",
+  "description": "Aether Tickets — Discord ticket bot with optional Flask web dashboard. Automatically clones from GitHub on first start and pulls updates on every restart. No file uploads needed — just fill in your tokens and click Start.",
   "features": null,
   "docker_images": {
-    "Python 3.11": "ghcr.io/pterodactyl/yolks:python_3.11",
+    "Python 3.11 (Recommended)": "ghcr.io/pterodactyl/yolks:python_3.11",
     "Python 3.10": "ghcr.io/pterodactyl/yolks:python_3.10",
-    "Python 3.9":  "ghcr.io/pterodactyl/yolks:python_3.9"
+    "Python 3.9": "ghcr.io/pterodactyl/yolks:python_3.9"
   },
   "file_denylist": [],
   "startup": "bash startup.sh",
@@ -24,15 +24,25 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\napt-get update -y\napt-get install -y git python3-pip\n\ncd /mnt/server\n\nif [ -d .git ]; then\n  git pull\nelse\n  if [ -n \"${GIT_REPO}\" ]; then\n    git clone \"${GIT_REPO}\" .\n  fi\nfi\n\npip install -U pip\npip install -U -r requirements.txt",
+      "script": "#!/bin/bash\n# ============================================================\n# Aether Tickets — Pterodactyl installation script\n# Runs once when the server is first created.\n# ============================================================\napt-get update -y -q\napt-get install -y -q git curl\n\ncd /mnt/server\n\nGIT_REPO=\"${GIT_REPO:-https://github.com/Shaf2665/Aether_Tickets.git}\"\nGIT_BRANCH=\"${GIT_BRANCH:-main}\"\n\necho \"[install] Cloning ${GIT_REPO} (branch: ${GIT_BRANCH})...\"\ngit clone --depth=1 --branch \"${GIT_BRANCH}\" \"${GIT_REPO}\" .\n\nif [ $? -ne 0 ]; then\n  echo \"[install] ERROR: git clone failed. Check GIT_REPO and GIT_BRANCH.\"\n  exit 1\nfi\n\necho \"[install] Installing Python dependencies...\"\npip install -U pip --quiet\npip install -U -r requirements.txt --quiet\n\necho \"[install] Installation complete. Click Start to launch the bot.\"",
       "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
   },
   "variables": [
     {
+      "name": "━━━━━━━━━━ REQUIRED ━━━━━━━━━━",
+      "description": "The variables below are required for the bot to work.",
+      "env_variable": "_SECTION_REQUIRED",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
       "name": "Discord Bot Token",
-      "description": "Your Discord bot token from the Discord Developer Portal.",
+      "description": "Your Discord bot token. Get it from https://discord.com/developers/applications → Your App → Bot → Reset Token. KEEP THIS SECRET.",
       "env_variable": "DISCORD_BOT_TOKEN",
       "default_value": "",
       "user_viewable": true,
@@ -41,8 +51,18 @@
       "field_type": "text"
     },
     {
-      "name": "Discord Client ID",
-      "description": "OAuth2 Client ID from the Discord Developer Portal (required for the web UI).",
+      "name": "━━━━━━━━━━ WEB DASHBOARD (optional) ━━━━━━━━━━",
+      "description": "Fill these in only if you want the web dashboard. Leave blank to run the bot only (set Launch Mode to 'bot').",
+      "env_variable": "_SECTION_WEB",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Discord OAuth Client ID",
+      "description": "OAuth2 Client ID from Discord Developer Portal → Your App → OAuth2. Required for web dashboard login.",
       "env_variable": "DISCORD_CLIENT_ID",
       "default_value": "",
       "user_viewable": true,
@@ -51,8 +71,8 @@
       "field_type": "text"
     },
     {
-      "name": "Discord Client Secret",
-      "description": "OAuth2 Client Secret from the Discord Developer Portal (required for the web UI).",
+      "name": "Discord OAuth Client Secret",
+      "description": "OAuth2 Client Secret from Discord Developer Portal → Your App → OAuth2. Required for web dashboard login.",
       "env_variable": "DISCORD_CLIENT_SECRET",
       "default_value": "",
       "user_viewable": true,
@@ -62,7 +82,7 @@
     },
     {
       "name": "Flask Secret Key",
-      "description": "Random secret key for Flask session management. Generate with: python -c \"import secrets; print(secrets.token_hex(32))\"",
+      "description": "A random secret key for securing web sessions. Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"",
       "env_variable": "FLASK_SECRET_KEY",
       "default_value": "",
       "user_viewable": true,
@@ -72,17 +92,27 @@
     },
     {
       "name": "Discord OAuth Redirect URI",
-      "description": "The full callback URL for Discord OAuth. Must match your Discord app settings. Example: https://tickets.yourdomain.com/auth/callback",
+      "description": "The callback URL for Discord OAuth login. Format: http://<node-alias>:<port>/auth/callback  Example: http://mtc.kovaihost.cloud:25056/auth/callback  This MUST match what you set in Discord Developer Portal → OAuth2 → Redirects.",
       "env_variable": "DISCORD_REDIRECT_URI",
-      "default_value": "http://localhost:5000/auth/callback",
+      "default_value": "",
       "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string|max:500",
       "field_type": "text"
     },
     {
+      "name": "━━━━━━━━━━ LAUNCH SETTINGS ━━━━━━━━━━",
+      "description": "Control how the bot starts.",
+      "env_variable": "_SECTION_LAUNCH",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
       "name": "Launch Mode",
-      "description": "What to launch: 'both' (bot + web UI), 'bot' (Discord bot only), or 'web' (Flask web UI only).",
+      "description": "What to run:  'both' = Discord bot + web dashboard (default)  'bot'  = Discord bot only (no web vars needed)  'web'  = Web dashboard only",
       "env_variable": "LAUNCH_MODE",
       "default_value": "both",
       "user_viewable": true,
@@ -91,28 +121,58 @@
       "field_type": "text"
     },
     {
-      "name": "Flask Environment",
-      "description": "Set to 'production' for normal use, 'development' for debug mode.",
-      "env_variable": "FLASK_ENV",
-      "default_value": "production",
+      "name": "Auto Update on Restart",
+      "description": "Pull the latest code from GitHub every time the server starts. 1 = yes (recommended), 0 = no (use current files).",
+      "env_variable": "AUTO_UPDATE",
+      "default_value": "1",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string|in:production,development",
+      "rules": "required|string|in:0,1",
       "field_type": "text"
     },
     {
-      "name": "Guild ID",
-      "description": "Optional: Discord server ID for faster command syncing. Leave blank for global sync.",
+      "name": "━━━━━━━━━━ ADVANCED / OPTIONAL ━━━━━━━━━━",
+      "description": "You normally do not need to change these.",
+      "env_variable": "_SECTION_ADVANCED",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Git Repository URL",
+      "description": "GitHub repository to clone/pull from. Pre-filled with the official Aether Tickets repo. Change only if you forked it.",
+      "env_variable": "GIT_REPO",
+      "default_value": "https://github.com/Shaf2665/Aether_Tickets.git",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Git Branch",
+      "description": "Which branch to track. Use 'main' for stable releases.",
+      "env_variable": "GIT_BRANCH",
+      "default_value": "main",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:100",
+      "field_type": "text"
+    },
+    {
+      "name": "Guild ID (for faster command sync)",
+      "description": "Optional: Your Discord server ID. If set, slash commands sync instantly to that server instead of globally (global sync can take up to 1 hour). Right-click your server → Copy Server ID.",
       "env_variable": "GUILD_ID",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "nullable|numeric|max:30",
+      "rules": "nullable|string|max:30",
       "field_type": "text"
     },
     {
       "name": "Database Path",
-      "description": "Path to the SQLite database file. Default is tickets.db in /home/container.",
+      "description": "Path to the SQLite database file. Default keeps it in /home/container (persistent across restarts). Do not change unless you know what you're doing.",
       "env_variable": "DATABASE_PATH",
       "default_value": "tickets.db",
       "user_viewable": true,
@@ -121,13 +181,13 @@
       "field_type": "text"
     },
     {
-      "name": "Git Repository URL",
-      "description": "Optional: Git repository URL to clone/pull on install. Leave blank to upload files manually.",
-      "env_variable": "GIT_REPO",
-      "default_value": "",
+      "name": "Flask Environment",
+      "description": "Set to 'production' for normal use. Only change to 'development' for debugging (shows detailed error pages).",
+      "env_variable": "FLASK_ENV",
+      "default_value": "production",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "nullable|string|max:500",
+      "rules": "required|string|in:production,development",
       "field_type": "text"
     }
   ]
