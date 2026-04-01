@@ -1,7 +1,17 @@
-discord.py>=2.3.0
+# Core Discord bot
+discord.py>=2.3.0,<3.0.0
 python-dotenv>=1.0.0
-Flask==3.0.0
+
+# Flask web UI
+Flask>=3.0.0,<4.0.0
+flask-cors>=4.0.0
+
+# HTTP / auth
 requests>=2.31.0
 PyJWT>=2.8.0
-flask-cors>=4.0.0
+
+# Timezone support
 pytz>=2023.3
+
+# Production WSGI server (used by Pterodactyl / gunicorn startup)
+gunicorn>=21.2.0

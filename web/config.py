@@ -15,6 +15,9 @@ class Config:
     DEBUG = os.getenv("FLASK_ENV") == "development"
     FLASK_ENV = os.getenv("FLASK_ENV", "production")
 
+    # Port — Pterodactyl sets PORT automatically; fall back to FLASK_PORT or 5000.
+    PORT = int(os.getenv("PORT", os.getenv("FLASK_PORT", 5000)))
+
     # Session configuration
     PERMANENT_SESSION_LIFETIME = 86400 * 7  # 7 days
     SESSION_COOKIE_SECURE = os.getenv("FLASK_ENV") != "development"

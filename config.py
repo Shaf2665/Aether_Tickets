@@ -27,8 +27,12 @@ class Config:
     if SUPPORT_ROLE_ID:
         SUPPORT_ROLE_ID = int(SUPPORT_ROLE_ID)
     
-    # Database file path
-    DATABASE_PATH = "tickets.db"
+    # Database file path — override via DATABASE_PATH env var.
+    # Pterodactyl containers run from /home/container, so the default
+    # "tickets.db" already resolves to /home/container/tickets.db which
+    # is persistent across restarts.  Set DATABASE_PATH explicitly if you
+    # want a different location.
+    DATABASE_PATH = os.getenv("DATABASE_PATH", "tickets.db")
     
     # Channel ID where ticket creation message will be sent - optional
     TICKET_CHANNEL_ID = os.getenv("TICKET_CHANNEL_ID", None)

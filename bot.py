@@ -1,5 +1,6 @@
 """Main bot file for the Discord Ticket Bot."""
 import os
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -9,9 +10,7 @@ from database import TicketDatabase
 from utils.embeds import create_ticket_panel_embed, create_error_embed
 from utils.ticket_creation import begin_ticket_creation, TicketActionView, TicketDeleteView
 
-
-# Validate configuration on import
-Config.validate()
+logger = logging.getLogger(__name__)
 
 
 class TicketBot(commands.Bot):
@@ -56,13 +55,13 @@ class TicketBot(commands.Bot):
     
     async def on_ready(self):
         """Called when the bot is ready."""
-        print(f"{self.user} has logged in!")
-        print(f"Bot ID: {self.user.id}")
-        print(f"Connected to {len(self.guilds)} guild(s)")
+        logger.info(f"{self.user} has logged in!")
+        logger.info(f"Bot ID: {self.user.id}")
+        logger.info(f"Connected to {len(self.guilds)} guild(s)")
         
         # Initialize database
         self.db.init_database()
-        print("Database initialized")
+        logger.info("Database initialized")
         
         # Load panels from guild configs (v1.3)
         from utils.embeds import create_custom_panel_embed
@@ -98,11 +97,11 @@ class TicketBot(commands.Bot):
                             )
                             view = TicketButtonView(self)
                             await panel_channel.send(embed=embed, view=view)
-                            print(f"Ticket panel created in {guild.name} - {panel_channel.name}")
+                            logger.info(f"Ticket panel created in {guild.name} - {panel_channel.name}")
                         elif len(panel_messages) > 1:
-                            print(f"Removed {len(panel_messages) - 1} duplicate panel(s) in {guild.name}")
+                            logger.info(f"Removed {len(panel_messages) - 1} duplicate panel(s) in {guild.name}")
                 except Exception as e:
-                    print(f"Error creating panel for {guild.name}: {e}")
+                    logger.error(f"Error creating panel for {guild.name}: {e}")
         
         # Fallback: Send ticket panel if .env is configured (backward compatibility)
         if Config.TICKET_CHANNEL_ID:
@@ -119,9 +118,9 @@ class TicketBot(commands.Bot):
                     embed = create_ticket_panel_embed()
                     view = TicketButtonView(self)
                     await channel.send(embed=embed, view=view)
-                    print(f"Ticket panel sent to {channel.name} (from .env config)")
+                    logger.info(f"Ticket panel sent to {channel.name} (from .env config)")
             except Exception as e:
-                print(f"Error sending ticket panel: {e}")
+                logger.error(f"Error sending ticket panel: {e}")
     
     async def handle_ticket_button(self, interaction: discord.Interaction):
         """Handle ticket creation button click."""
@@ -160,32 +159,19 @@ class TicketButtonView(discord.ui.View):
         await self.bot.handle_ticket_button(interaction)
 
 
-def _check_single_instance():
-    """Write a PID lock file; abort if another instance is already running."""
-    import tempfile, atexit
-    lock_path = os.path.join(tempfile.gettempdir(), "aether_tickets.lock")
-    if os.path.exists(lock_path):
-        try:
-            with open(lock_path) as f:
-                pid = int(f.read().strip())
-            # os.kill(pid, 0) raises OSError if the process doesn't exist
-            os.kill(pid, 0)
-            print(f"Error: Bot is already running (PID {pid}). Stop that instance first.")
-            raise SystemExit(1)
-        except (ValueError, OSError):
-            pass  # stale lock — process is gone, safe to proceed
-    with open(lock_path, "w") as f:
-        f.write(str(os.getpid()))
-    atexit.register(lambda: os.path.exists(lock_path) and os.remove(lock_path))
-
-
 def main():
-    """Main function to run the bot."""
-    _check_single_instance()
+    """Main function to run the bot standalone (python bot.py)."""
+    # Setup basic logging when running standalone
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    Config.validate()
 
     if not Config.BOT_TOKEN:
-        print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
-        print("Please create a .env file with your bot token.")
+        logger.error("DISCORD_BOT_TOKEN not found in environment variables!")
+        logger.error("Please create a .env file with your bot token.")
         return
 
     bot = TicketBot()
@@ -194,4 +180,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
