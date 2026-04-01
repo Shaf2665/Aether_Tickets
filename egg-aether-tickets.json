@@ -32,7 +32,7 @@
   "variables": [
     {
       "name": "📖 QUICK SETUP GUIDE — READ FIRST",
-      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below (this field is hidden from the panel admin — only you can see it), then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready. For the web dashboard, also fill in the WEB DASHBOARD section below.",
+      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below, then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready. For the web dashboard, also fill in the WEB DASHBOARD section below.",
       "env_variable": "_GUIDE_MAIN",
       "default_value": "",
       "user_viewable": true,
@@ -42,10 +42,10 @@
     },
     {
       "name": "🔴 REQUIRED — Discord Bot Token",
-      "description": "Paste your Discord bot token here. Get it from: https://discord.com/developers/applications → select your app → Bot → Reset Token. WARNING: Never share this token with anyone. This field is hidden from the server admin — only you (the server owner) can see and edit it.",
+      "description": "Paste your Discord bot token here. Get it from: https://discord.com/developers/applications → select your app → Bot → Reset Token. WARNING: Never share this token with anyone.",
       "env_variable": "DISCORD_BOT_TOKEN",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "required|string|max:200",
       "field_type": "text"
@@ -82,20 +82,20 @@
     },
     {
       "name": "Discord OAuth Client Secret",
-      "description": "From Discord Developer Portal → your app → OAuth2 → Client Secret. Required for web dashboard login. This field is hidden from the server admin — only you can see and edit it.",
+      "description": "From Discord Developer Portal → your app → OAuth2 → Client Secret. Required for web dashboard login. Keep this value private — do not share it.",
       "env_variable": "DISCORD_CLIENT_SECRET",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string|max:200",
       "field_type": "text"
     },
     {
       "name": "Flask Secret Key",
-      "description": "A random string used to secure login sessions. Generate one at: https://it-tools.tech/token-generator — copy a 64-char token and paste it here. This field is hidden from the server admin.",
+      "description": "A random string used to secure login sessions. Generate one at: https://it-tools.tech/token-generator — copy a 64-char token and paste it here.",
       "env_variable": "FLASK_SECRET_KEY",
       "default_value": "",
-      "user_viewable": false,
+      "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string|max:200",
       "field_type": "text"
