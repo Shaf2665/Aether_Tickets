@@ -1,4 +1,5 @@
 """Main bot file for the Discord Ticket Bot."""
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -159,13 +160,34 @@ class TicketButtonView(discord.ui.View):
         await self.bot.handle_ticket_button(interaction)
 
 
+def _check_single_instance():
+    """Write a PID lock file; abort if another instance is already running."""
+    import tempfile, atexit
+    lock_path = os.path.join(tempfile.gettempdir(), "aether_tickets.lock")
+    if os.path.exists(lock_path):
+        try:
+            with open(lock_path) as f:
+                pid = int(f.read().strip())
+            # os.kill(pid, 0) raises OSError if the process doesn't exist
+            os.kill(pid, 0)
+            print(f"Error: Bot is already running (PID {pid}). Stop that instance first.")
+            raise SystemExit(1)
+        except (ValueError, OSError):
+            pass  # stale lock — process is gone, safe to proceed
+    with open(lock_path, "w") as f:
+        f.write(str(os.getpid()))
+    atexit.register(lambda: os.path.exists(lock_path) and os.remove(lock_path))
+
+
 def main():
     """Main function to run the bot."""
+    _check_single_instance()
+
     if not Config.BOT_TOKEN:
         print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
         print("Please create a .env file with your bot token.")
         return
-    
+
     bot = TicketBot()
     bot.run(Config.BOT_TOKEN)
 
