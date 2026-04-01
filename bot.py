@@ -6,6 +6,7 @@ import asyncio
 from config import Config
 from database import TicketDatabase
 from utils.embeds import create_ticket_panel_embed, create_error_embed
+from utils.ticket_creation import begin_ticket_creation
 
 
 # Validate configuration on import
@@ -34,6 +35,8 @@ class TicketBot(commands.Bot):
         await self.load_extension("commands.ticket")
         # Load setup commands
         await self.load_extension("commands.setup")
+        # Load category commands
+        await self.load_extension("commands.categories")
         
         # Add persistent view for ticket button
         self.add_view(TicketButtonView(self))
@@ -59,26 +62,32 @@ class TicketBot(commands.Bot):
         print("Database initialized")
         
         # Load panels from guild configs (v1.3)
+        from utils.embeds import create_custom_panel_embed
         for guild in self.guilds:
             config = self.db.get_guild_config(str(guild.id))
             if config:
                 try:
                     panel_channel = guild.get_channel(int(config.get('panel_channel_id', 0)))
                     if panel_channel:
-                        # Check if panel already exists
-                        panel_exists = False
-                        async for message in panel_channel.history(limit=10):
+                        # Collect all existing bot panel messages and delete duplicates
+                        panel_messages = []
+                        async for message in panel_channel.history(limit=50):
                             if message.author == self.user and message.embeds:
-                                panel_exists = True
-                                break
-                        
-                        if not panel_exists:
-                            # Create panel
+                                panel_messages.append(message)
+
+                        # Delete all but keep none — we'll re-post a clean one if needed
+                        for msg in panel_messages[1:]:
+                            try:
+                                await msg.delete()
+                            except Exception:
+                                pass
+
+                        if not panel_messages:
+                            # No panel exists, create one
                             ping_role = None
                             if config.get('ping_role_id'):
                                 ping_role = guild.get_role(int(config['ping_role_id']))
-                            
-                            from utils.embeds import create_custom_panel_embed
+
                             embed = create_custom_panel_embed(
                                 title=config.get('panel_title'),
                                 description=config.get('panel_description'),
@@ -87,6 +96,8 @@ class TicketBot(commands.Bot):
                             view = TicketButtonView(self)
                             await panel_channel.send(embed=embed, view=view)
                             print(f"Ticket panel created in {guild.name} - {panel_channel.name}")
+                        elif len(panel_messages) > 1:
+                            print(f"Removed {len(panel_messages) - 1} duplicate panel(s) in {guild.name}")
                 except Exception as e:
                     print(f"Error creating panel for {guild.name}: {e}")
         
@@ -112,126 +123,20 @@ class TicketBot(commands.Bot):
     async def handle_ticket_button(self, interaction: discord.Interaction):
         """Handle ticket creation button click."""
         try:
-            # Check if user already has an open ticket
-            open_tickets = self.db.get_user_tickets(str(interaction.user.id), status='open')
-            if open_tickets:
-                await interaction.response.send_message(
-                    embed=create_error_embed(
-                        "You already have an open ticket. Please close it before creating a new one."
-                    ),
-                    ephemeral=True
-                )
-                return
-            
-            # Get guild and category
-            guild = interaction.guild
-            if not guild:
-                await interaction.response.send_message(
-                    embed=create_error_embed("This can only be used in a server."),
-                    ephemeral=True
-                )
-                return
-            
-            # Get guild config (v1.3) or fallback to .env
-            guild_config = self.db.get_guild_config(str(guild.id))
-            category = None
-            ping_role_id = None
-            support_role_id = None
-            
-            if guild_config:
-                # Use guild config
-                if guild_config.get('ticket_category_id'):
-                    category = discord.utils.get(guild.categories, id=int(guild_config['ticket_category_id']))
-                ping_role_id = guild_config.get('ping_role_id')
-                support_role_id = guild_config.get('support_role_id')
-            else:
-                # Fallback to .env config
-                if Config.TICKET_CATEGORY_ID:
-                    category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
-                support_role_id = str(Config.SUPPORT_ROLE_ID) if Config.SUPPORT_ROLE_ID else None
-            
-            # Create channel name
-            username = interaction.user.name.lower().replace(" ", "-")
-            channel_name = f"ticket-{username}"
-            
-            # Create overwrites for permissions
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                interaction.user: discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True
-                ),
-                guild.me: discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    manage_channels=True
-                )
-            }
-            
-            # Add support role if configured
-            if support_role_id:
-                support_role = guild.get_role(int(support_role_id))
-                if support_role:
-                    overwrites[support_role] = discord.PermissionOverwrite(
-                        view_channel=True,
-                        send_messages=True,
-                        read_message_history=True
-                    )
-            
-            # Create the channel
-            await interaction.response.defer(ephemeral=True)
-            
-            channel = await guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites,
-                reason=f"Ticket created by {interaction.user}"
-            )
-            
-            # Log to database
-            ticket_id = self.db.create_ticket(str(channel.id), str(interaction.user.id))
-            
-            # Get ticket data for embed
-            ticket_data = self.db.get_ticket_by_channel(str(channel.id))
-            
-            # Send welcome message
-            from utils.embeds import create_ticket_embed
-            embed = create_ticket_embed(interaction.user, ticket_data)
-            embed.add_field(
-                name="Ticket ID",
-                value=f"#{ticket_id}",
-                inline=False
-            )
-            
-            # Ping role if configured (v1.3)
-            ping_message = ""
-            if ping_role_id:
-                ping_role = guild.get_role(int(ping_role_id))
-                if ping_role:
-                    ping_message = f"{ping_role.mention} "
-            
-            await channel.send(ping_message, embed=embed)
-            
-            # Respond to interaction
-            await interaction.followup.send(
-                f"Ticket created! {channel.mention}",
-                ephemeral=True
-            )
-            
-        except discord.Forbidden:
-            await interaction.followup.send(
-                embed=create_error_embed(
-                    "I don't have permission to create channels. Please check my permissions."
-                ),
-                ephemeral=True
-            )
+            await begin_ticket_creation(self, interaction)
+        except discord.NotFound:
+            pass
         except Exception as e:
-            await interaction.followup.send(
-                embed=create_error_embed(f"An error occurred: {str(e)}"),
-                ephemeral=True
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True,
+                )
 
 
 class TicketButtonView(discord.ui.View):

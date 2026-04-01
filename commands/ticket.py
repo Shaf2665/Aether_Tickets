@@ -4,7 +4,6 @@ from discord import app_commands
 from discord.ext import commands
 from database import TicketDatabase
 from utils.embeds import (
-    create_ticket_embed,
     create_close_embed,
     create_error_embed,
     create_permission_error_embed,
@@ -14,6 +13,7 @@ from utils.embeds import (
     create_stats_embed
 )
 from config import Config
+from utils.ticket_creation import begin_ticket_creation
 
 
 class TicketCommands(commands.Cog):
@@ -52,123 +52,20 @@ class TicketCommands(commands.Cog):
     
     @app_commands.command(name="ticket", description="Create a new support ticket")
     async def create_ticket(self, interaction: discord.Interaction):
-        """Create a new ticket channel."""
+        """Create a new ticket channel (category select + description modal)."""
         try:
-            # Check if user already has an open ticket
-            open_tickets = self.db.get_user_tickets(str(interaction.user.id), status='open')
-            if open_tickets:
-                await interaction.response.send_message(
-                    embed=create_error_embed(
-                        "You already have an open ticket. Please close it before creating a new one."
-                    ),
-                    ephemeral=True
-                )
-                return
-            
-            # Get guild and category
-            guild = interaction.guild
-            if not guild:
-                await interaction.response.send_message(
-                    embed=create_error_embed("This command can only be used in a server."),
-                    ephemeral=True
-                )
-                return
-            
-            # Get guild config (v1.3) or fallback to .env
-            guild_config = self.db.get_guild_config(str(guild.id))
-            category = None
-            ping_role_id = None
-            support_role_id = None
-            
-            if guild_config:
-                # Use guild config
-                if guild_config.get('ticket_category_id'):
-                    category = discord.utils.get(guild.categories, id=int(guild_config['ticket_category_id']))
-                ping_role_id = guild_config.get('ping_role_id')
-                support_role_id = guild_config.get('support_role_id')
-            else:
-                # Fallback to .env config
-                if Config.TICKET_CATEGORY_ID:
-                    category = discord.utils.get(guild.categories, id=Config.TICKET_CATEGORY_ID)
-                support_role_id = str(Config.SUPPORT_ROLE_ID) if Config.SUPPORT_ROLE_ID else None
-            
-            # Create channel name
-            username = interaction.user.name.lower().replace(" ", "-")
-            channel_name = f"ticket-{username}"
-            
-            # Create overwrites for permissions
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                interaction.user: discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True
-                ),
-                guild.me: discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    manage_channels=True
-                )
-            }
-            
-            # Add support role if configured
-            if support_role_id:
-                support_role = guild.get_role(int(support_role_id))
-                if support_role:
-                    overwrites[support_role] = discord.PermissionOverwrite(
-                        view_channel=True,
-                        send_messages=True,
-                        read_message_history=True
-                    )
-            
-            # Create the channel
-            channel = await guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites,
-                reason=f"Ticket created by {interaction.user}"
-            )
-            
-            # Log to database
-            ticket_id = self.db.create_ticket(str(channel.id), str(interaction.user.id))
-            
-            # Send welcome message
-            ticket_data = self.db.get_ticket_by_channel(str(channel.id))
-            embed = create_ticket_embed(interaction.user, ticket_data)
-            embed.add_field(
-                name="Ticket ID",
-                value=f"#{ticket_id}",
-                inline=False
-            )
-            
-            # Ping role if configured (v1.3)
-            ping_message = ""
-            if ping_role_id:
-                ping_role = guild.get_role(int(ping_role_id))
-                if ping_role:
-                    ping_message = f"{ping_role.mention} "
-            
-            await channel.send(ping_message, embed=embed)
-            
-            # Respond to interaction
-            await interaction.response.send_message(
-                f"Ticket created! {channel.mention}",
-                ephemeral=True
-            )
-            
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                embed=create_error_embed(
-                    "I don't have permission to create channels. Please check my permissions."
-                ),
-                ephemeral=True
-            )
+            await begin_ticket_creation(self.bot, interaction)
         except Exception as e:
-            await interaction.response.send_message(
-                embed=create_error_embed(f"An error occurred: {str(e)}"),
-                ephemeral=True
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True,
+                )
     
     @app_commands.command(name="close", description="Close the current ticket")
     @app_commands.describe(reason="Optional reason for closing the ticket")

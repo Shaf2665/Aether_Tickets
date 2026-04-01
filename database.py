@@ -198,30 +198,170 @@ class TicketDatabase:
         
         return success
     
-    def create_ticket(self, channel_id: str, user_id: str) -> int:
+    def get_ticket_categories(self, guild_id: str) -> List[Dict]:
+        """Return ticket categories for a guild, ordered for display."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM guild_ticket_categories
+            WHERE guild_id = ?
+            ORDER BY sort_order ASC, id ASC
+            """,
+            (str(guild_id),),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_ticket_category_by_id(self, category_id: int) -> Optional[Dict]:
+        """Get a single ticket category row by primary key."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM guild_ticket_categories WHERE id = ?",
+            (int(category_id),),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def get_ticket_category_by_guild_and_label(self, guild_id: str, label: str) -> Optional[Dict]:
+        """Look up a category by exact label in a guild."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM guild_ticket_categories WHERE guild_id = ? AND label = ?",
+            (str(guild_id), label.strip()),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def add_ticket_category(self, guild_id: str, label: str, discord_category_id: Optional[str] = None) -> Optional[int]:
+        """Add a ticket category. Returns new row id or None on duplicate label."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM guild_ticket_categories WHERE guild_id = ?",
+            (str(guild_id),),
+        )
+        sort_order = int(cursor.fetchone()["n"])
+        try:
+            cursor.execute(
+                "INSERT INTO guild_ticket_categories (guild_id, label, discord_category_id, sort_order) VALUES (?, ?, ?, ?)",
+                (str(guild_id), label.strip(), discord_category_id, sort_order),
+            )
+            new_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return new_id
+        except sqlite3.IntegrityError:
+            conn.close()
+            return None
+
+    def delete_ticket_category(self, guild_id: str, category_id: int) -> bool:
+        """Delete a category row if it belongs to the guild."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM guild_ticket_categories WHERE id = ? AND guild_id = ?",
+            (int(category_id), str(guild_id)),
+        )
+        if not cursor.fetchone():
+            conn.close()
+            return False
+        cursor.execute(
+            "UPDATE tickets SET guild_ticket_category_id = NULL WHERE guild_ticket_category_id = ?",
+            (int(category_id),),
+        )
+        cursor.execute(
+            "DELETE FROM guild_ticket_categories WHERE id = ? AND guild_id = ?",
+            (int(category_id), str(guild_id)),
+        )
+        ok = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return ok
+
+    def update_ticket_category(
+        self,
+        guild_id: str,
+        category_id: int,
+        label: Optional[str] = None,
+        discord_category_id: Optional[str] = None,
+        unset_discord_category: bool = False,
+    ) -> bool:
+        """Update label and/or Discord category folder for a row."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM guild_ticket_categories WHERE id = ? AND guild_id = ?",
+            (int(category_id), str(guild_id)),
+        )
+        if not cursor.fetchone():
+            conn.close()
+            return False
+        sets = []
+        params = []
+        if label is not None:
+            sets.append("label = ?")
+            params.append(label.strip())
+        if unset_discord_category:
+            sets.append("discord_category_id = NULL")
+        elif discord_category_id is not None:
+            sets.append("discord_category_id = ?")
+            params.append(discord_category_id)
+        if not sets:
+            conn.close()
+            return True
+        params.extend([int(category_id), str(guild_id)])
+        try:
+            cursor.execute(
+                f"UPDATE guild_ticket_categories SET {', '.join(sets)} WHERE id = ? AND guild_id = ?",
+                params,
+            )
+            conn.commit()
+            ok = cursor.rowcount > 0
+        except sqlite3.IntegrityError:
+            ok = False
+        conn.close()
+        return ok
+
+    def create_ticket(
+        self,
+        channel_id: str,
+        user_id: str,
+        guild_ticket_category_id: Optional[int] = None,
+        initial_description: Optional[str] = None,
+    ) -> int:
         """Create a new ticket in the database.
-        
+
         Args:
             channel_id: Discord channel ID
             user_id: Discord user ID who created the ticket
-            
+            guild_ticket_category_id: Optional FK to guild_ticket_categories.id
+            initial_description: Optional user description from ticket modal
+
         Returns:
             The ticket_id of the created ticket
         """
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
         created_at = datetime.datetime.utcnow().isoformat()
-        
+        desc = initial_description[:4000] if initial_description else None
+
         cursor.execute("""
-            INSERT INTO tickets (channel_id, user_id, created_at, status)
-            VALUES (?, ?, ?, 'open')
-        """, (str(channel_id), str(user_id), created_at))
-        
+            INSERT INTO tickets (channel_id, user_id, created_at, status,
+                guild_ticket_category_id, initial_description)
+            VALUES (?, ?, ?, 'open', ?, ?)
+        """, (str(channel_id), str(user_id), created_at, guild_ticket_category_id, desc))
+
         ticket_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        
+
         return ticket_id
     
     def close_ticket(self, channel_id: str, reason: str = None) -> bool:
