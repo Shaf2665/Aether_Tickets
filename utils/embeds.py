@@ -76,7 +76,7 @@ def create_close_embed(user: discord.Member, reason: str = None) -> discord.Embe
     
     embed.add_field(
         name="Notice",
-        value="This channel will be deleted in a few seconds.",
+        value="This channel has been moved to the Closed Tickets category.\nAn admin can permanently delete it using the button below.",
         inline=False
     )
     embed.set_footer(text="Ticket System")

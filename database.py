@@ -20,10 +20,11 @@ class TicketDatabase:
         return conn
     
     def init_database(self):
-        """Initialize the database and create tables if they don't exist."""
+        """Initialize the database and create/migrate all tables in one connection."""
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
+        # ── Core tickets table ────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tickets (
                 ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,61 +35,8 @@ class TicketDatabase:
                 status TEXT NOT NULL DEFAULT 'open'
             )
         """)
-        
-        # Migration: Add new columns if they don't exist (for v1.2)
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN claimed_by TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN claimed_at TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN close_reason TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        # Initialize guild_config table (for v1.3)
-        self.init_guild_config_table()
 
-        # Add closed_category_id column if it doesn't exist (for v1.8)
-        try:
-            cursor.execute("ALTER TABLE guild_config ADD COLUMN closed_category_id TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        # Initialize guild_ticket_categories table (for v1.5)
-        self.init_guild_ticket_categories_table()
-
-        # Add guild_id column to tickets table if it doesn't exist
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN guild_id TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-        # Add guild_ticket_category_id column if it doesn't exist
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN guild_ticket_category_id INTEGER")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-        # Add initial_description column if it doesn't exist
-        try:
-            cursor.execute("ALTER TABLE tickets ADD COLUMN initial_description TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-        conn.commit()
-        conn.close()
-    
-    def init_guild_config_table(self):
-        """Initialize the guild_config table for storing per-guild settings."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
+        # ── guild_config table ────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS guild_config (
                 guild_id TEXT PRIMARY KEY,
@@ -102,14 +50,7 @@ class TicketDatabase:
             )
         """)
 
-        conn.commit()
-        conn.close()
-
-    def init_guild_ticket_categories_table(self):
-        """Initialize the guild_ticket_categories table for ticket types."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
+        # ── guild_ticket_categories table ─────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS guild_ticket_categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,8 +62,33 @@ class TicketDatabase:
             )
         """)
 
+        # ── Migrations: add columns that may not exist in older databases ─────
+        migrations = [
+            "ALTER TABLE tickets ADD COLUMN claimed_by TEXT",
+            "ALTER TABLE tickets ADD COLUMN claimed_at TEXT",
+            "ALTER TABLE tickets ADD COLUMN close_reason TEXT",
+            "ALTER TABLE tickets ADD COLUMN guild_id TEXT",
+            "ALTER TABLE tickets ADD COLUMN guild_ticket_category_id INTEGER",
+            "ALTER TABLE tickets ADD COLUMN initial_description TEXT",
+            "ALTER TABLE guild_config ADD COLUMN closed_category_id TEXT",
+        ]
+        for sql in migrations:
+            try:
+                cursor.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # Column already exists — safe to ignore
+
         conn.commit()
         conn.close()
+
+    # Keep these as no-ops for backward compatibility in case anything calls them directly
+    def init_guild_config_table(self):
+        """Deprecated: schema is now managed entirely by init_database()."""
+        pass
+
+    def init_guild_ticket_categories_table(self):
+        """Deprecated: schema is now managed entirely by init_database()."""
+        pass
     
     def save_guild_config(self, guild_id: str, config_dict: dict) -> bool:
         """Save or update guild configuration.
@@ -339,6 +305,7 @@ class TicketDatabase:
         self,
         channel_id: str,
         user_id: str,
+        guild_id: Optional[str] = None,
         guild_ticket_category_id: Optional[int] = None,
         initial_description: Optional[str] = None,
     ) -> int:
@@ -347,6 +314,7 @@ class TicketDatabase:
         Args:
             channel_id: Discord channel ID
             user_id: Discord user ID who created the ticket
+            guild_id: Discord guild (server) ID — required for web dashboard filtering
             guild_ticket_category_id: Optional FK to guild_ticket_categories.id
             initial_description: Optional user description from ticket modal
 
@@ -360,10 +328,11 @@ class TicketDatabase:
         desc = initial_description[:4000] if initial_description else None
 
         cursor.execute("""
-            INSERT INTO tickets (channel_id, user_id, created_at, status,
+            INSERT INTO tickets (channel_id, user_id, guild_id, created_at, status,
                 guild_ticket_category_id, initial_description)
-            VALUES (?, ?, ?, 'open', ?, ?)
-        """, (str(channel_id), str(user_id), created_at, guild_ticket_category_id, desc))
+            VALUES (?, ?, ?, ?, 'open', ?, ?)
+        """, (str(channel_id), str(user_id), str(guild_id) if guild_id else None,
+              created_at, guild_ticket_category_id, desc))
 
         ticket_id = cursor.lastrowid
         conn.commit()

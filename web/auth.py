@@ -76,21 +76,29 @@ class DiscordOAuth:
 
     @staticmethod
     def is_guild_admin(guild, user_id):
-        """Check if user is admin/owner of a guild based on Discord API response."""
-        # In Discord guilds list response, owner_id field indicates the owner
-        # For permission checking, we need to verify admin status
-        return guild.get("owner") is True
+        """Check if user is admin/owner of a guild based on Discord API response.
+
+        The /users/@me/guilds endpoint returns:
+          - 'owner': true/false  — whether the user owns the guild
+          - 'permissions': integer bitmask of the user's permissions in that guild
+
+        ADMINISTRATOR permission bit is 0x8 (decimal 8).
+        """
+        if guild.get("owner") is True:
+            return True
+        # Check ADMINISTRATOR bit in the permissions bitmask
+        perms = guild.get("permissions")
+        if perms is not None:
+            try:
+                return bool(int(perms) & 0x8)
+            except (ValueError, TypeError):
+                pass
+        return False
 
     @staticmethod
     def filter_admin_guilds(guilds, user_id):
-        """Filter to only guilds where user is owner or has admin permissions."""
-        # The Discord API /users/@me/guilds endpoint returns owner field
-        # indicating if user is the owner of that guild
-        admin_guilds = []
-        for guild in guilds:
-            if guild.get("owner") is True:
-                admin_guilds.append(guild)
-        return admin_guilds
+        """Filter to only guilds where user is owner or has Administrator permission."""
+        return [g for g in guilds if DiscordOAuth.is_guild_admin(g, user_id)]
 
 
 def login_required(f):

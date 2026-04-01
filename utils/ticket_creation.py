@@ -460,6 +460,7 @@ async def finalize_ticket_creation(
     ticket_id = bot.db.create_ticket(
         str(channel.id),
         str(user.id),
+        guild_id=str(guild.id),
         guild_ticket_category_id=int(row["id"]),
         initial_description=description,
     )

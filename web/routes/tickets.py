@@ -16,24 +16,29 @@ def list_tickets():
 
     # Get filters from request
     status_filter = request.args.get("status", "all")
-    search = request.args.get("search", "")
+    search = request.args.get("search", "").strip()
     page = request.args.get("page", 1, type=int)
     per_page = 25
 
-    # Get tickets
-    if status_filter == "all":
-        tickets = db.get_guild_tickets(guild_id, limit=per_page, offset=(page - 1) * per_page)
-        total = db.get_guild_ticket_count(guild_id)
-    else:
-        tickets = db.get_guild_tickets(guild_id, status=status_filter, limit=per_page, offset=(page - 1) * per_page)
-        total = db.get_guild_ticket_count(guild_id, status=status_filter)
+    status_arg = status_filter if status_filter != "all" else None
 
-    # Filter by search if provided
     if search:
-        tickets = [t for t in tickets if search.lower() in str(t.get('ticket_id')).lower() or
-                   search.lower() in t.get('user_id', '').lower()]
+        # Search across ALL tickets for this guild (no pagination offset) so we
+        # don't miss matches that fall on other pages.
+        all_tickets = db.get_guild_tickets(guild_id, status=status_arg, limit=10000, offset=0)
+        tickets_filtered = [
+            t for t in all_tickets
+            if search.lower() in str(t.get("ticket_id", "")).lower()
+            or search.lower() in t.get("user_id", "").lower()
+        ]
+        total = len(tickets_filtered)
+        offset = (page - 1) * per_page
+        tickets = tickets_filtered[offset: offset + per_page]
+    else:
+        tickets = db.get_guild_tickets(guild_id, status=status_arg, limit=per_page, offset=(page - 1) * per_page)
+        total = db.get_guild_ticket_count(guild_id, status=status_arg)
 
-    total_pages = (total + per_page - 1) // per_page
+    total_pages = max(1, (total + per_page - 1) // per_page)
 
     return render_template(
         'tickets.html',

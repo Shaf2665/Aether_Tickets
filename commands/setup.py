@@ -1,4 +1,5 @@
 """Setup commands for configuring the ticket system."""
+import logging
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -12,6 +13,8 @@ from utils.embeds import (
 )
 from bot import TicketButtonView
 import re
+
+logger = logging.getLogger(__name__)
 
 
 class SetupCommands(commands.Cog):
@@ -105,10 +108,12 @@ class SetupCommands(commands.Cog):
             else:
                 await message.author.send(content=content)
         except discord.Forbidden:
-            # Can't DM either (user has DMs disabled), log it
-            print(f"Warning: Could not send message to user {message.author.id} - no permissions in channel and DMs disabled")
+            logger.warning(
+                "Could not send message to user %s — no channel permission and DMs disabled",
+                message.author.id,
+            )
         except Exception as e:
-            print(f"Error sending DM to user {message.author.id}: {e}")
+            logger.error("Error sending DM to user %s: %s", message.author.id, e)
     
     @setup.command(name="start", description="Start the interactive setup process (admin only)")
     async def setup_start(self, interaction: discord.Interaction):
@@ -244,8 +249,8 @@ class SetupCommands(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Handle setup responses."""
-        # Ignore bot messages
-        if message.author.bot:
+        # Ignore bot messages and DMs (guild is None in DMs)
+        if message.author.bot or message.guild is None:
             return
         
         user_id = str(message.author.id)

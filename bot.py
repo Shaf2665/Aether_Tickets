@@ -77,7 +77,8 @@ class TicketBot(commands.Bot):
                             if message.author == self.user and message.embeds:
                                 panel_messages.append(message)
 
-                        # Delete all but keep none — we'll re-post a clean one if needed
+                        # Keep the most recent panel (index 0, history is newest-first)
+                        # and delete any duplicates after it.
                         for msg in panel_messages[1:]:
                             try:
                                 await msg.delete()
