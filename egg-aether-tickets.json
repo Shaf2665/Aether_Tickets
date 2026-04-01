@@ -32,7 +32,7 @@
   "variables": [
     {
       "name": "📖 QUICK SETUP GUIDE — READ FIRST",
-      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below, then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready. For the web dashboard, also fill in the WEB DASHBOARD section below.",
+      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below (this field is hidden from the panel admin — only you can see it), then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready. For the web dashboard, also fill in the WEB DASHBOARD section below.",
       "env_variable": "_GUIDE_MAIN",
       "default_value": "",
       "user_viewable": true,
@@ -42,10 +42,10 @@
     },
     {
       "name": "🔴 REQUIRED — Discord Bot Token",
-      "description": "Paste your Discord bot token here. Get it from: https://discord.com/developers/applications → select your app → Bot → Reset Token. WARNING: Never share this token with anyone.",
+      "description": "Paste your Discord bot token here. Get it from: https://discord.com/developers/applications → select your app → Bot → Reset Token. WARNING: Never share this token with anyone. This field is hidden from the server admin — only you (the server owner) can see and edit it.",
       "env_variable": "DISCORD_BOT_TOKEN",
       "default_value": "",
-      "user_viewable": true,
+      "user_viewable": false,
       "user_editable": true,
       "rules": "required|string|max:200",
       "field_type": "text"
@@ -62,7 +62,7 @@
     },
     {
       "name": "━━━━━━━━━━ 🌐 WEB DASHBOARD (optional) ━━━━━━━━━━",
-      "description": "The web dashboard lets you view and manage tickets from a browser at http://your-node:port. To enable it: (1) Set Launch Mode to 'both' below. (2) In Discord Developer Portal → your app → OAuth2, add a Redirect URL: http://YOUR-NODE-ADDRESS:YOUR-PORT/auth/callback (e.g. http://free-01.kovaihost.cloud:2000/auth/callback). (3) Fill in the 4 fields below. Leave all 4 blank and set Launch Mode to 'bot' if you only want the Discord bot.",
+      "description": "The web dashboard lets you view and manage tickets from a browser. To enable it: (1) Set Launch Mode to 'both' below. (2) In Discord Developer Portal → your app → OAuth2, add a Redirect URL matching your access URL exactly — e.g. http://free-01.kovaihost.cloud:2000/auth/callback (HTTP) or https://tickets.yourdomain.com/auth/callback (HTTPS if behind a proxy). (3) Fill in the 4 fields below. (4) If using HTTPS, also enable 'Behind Reverse Proxy' in the SSL section. Leave all fields blank and set Launch Mode to 'bot' if you only want the Discord bot.",
       "env_variable": "_GUIDE_WEB",
       "default_value": "",
       "user_viewable": true,
@@ -82,20 +82,20 @@
     },
     {
       "name": "Discord OAuth Client Secret",
-      "description": "From Discord Developer Portal → your app → OAuth2 → Client Secret. Required for web dashboard login. Keep this secret.",
+      "description": "From Discord Developer Portal → your app → OAuth2 → Client Secret. Required for web dashboard login. This field is hidden from the server admin — only you can see and edit it.",
       "env_variable": "DISCORD_CLIENT_SECRET",
       "default_value": "",
-      "user_viewable": true,
+      "user_viewable": false,
       "user_editable": true,
       "rules": "nullable|string|max:200",
       "field_type": "text"
     },
     {
       "name": "Flask Secret Key",
-      "description": "A random string used to secure login sessions. Generate one by running this in any Python terminal: python -c \"import secrets; print(secrets.token_hex(32))\" — then paste the result here.",
+      "description": "A random string used to secure login sessions. Generate one at: https://it-tools.tech/token-generator — copy a 64-char token and paste it here. This field is hidden from the server admin.",
       "env_variable": "FLASK_SECRET_KEY",
       "default_value": "",
-      "user_viewable": true,
+      "user_viewable": false,
       "user_editable": true,
       "rules": "nullable|string|max:200",
       "field_type": "text"
@@ -109,6 +109,26 @@
       "user_editable": true,
       "rules": "nullable|string|max:500",
       "field_type": "text"
+    },
+    {
+      "name": "━━━━━━━━━━ 🔒 SSL / HTTPS (optional) ━━━━━━━━━━",
+      "description": "Enable these only if your Pterodactyl node is behind a reverse proxy (Nginx, Caddy, Cloudflare) that terminates HTTPS. If your dashboard URL starts with https://, set 'Behind Reverse Proxy' to true and update your Redirect URI to use https://. If you are using plain http://, leave both disabled.",
+      "env_variable": "_SECTION_SSL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Behind Reverse Proxy (enables HTTPS support)",
+      "description": "Set to true if your node uses Nginx/Caddy/Cloudflare to serve the dashboard over HTTPS. This enables ProxyFix so Flask trusts X-Forwarded-Proto headers and generates correct https:// URLs. Leave false for plain http:// access.",
+      "env_variable": "BEHIND_PROXY",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|boolean",
+      "field_type": "boolean"
     },
     {
       "name": "━━━━━━━━━━ ⚙️ LAUNCH SETTINGS ━━━━━━━━━━",

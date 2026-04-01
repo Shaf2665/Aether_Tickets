@@ -2,6 +2,7 @@
 
 from flask import Flask
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 def create_app(config=None):
@@ -16,6 +17,18 @@ def create_app(config=None):
         app.config.from_object(Config)
     else:
         app.config.update(config)
+
+    # Apply ProxyFix when running behind a reverse proxy (Nginx, Caddy, Cloudflare, etc.)
+    # This makes Flask trust X-Forwarded-For / X-Forwarded-Proto headers so that:
+    #   - url_for() generates https:// URLs correctly
+    #   - redirect_uri in OAuth matches the public HTTPS address
+    # Controlled by the BEHIND_PROXY env var (set to "true" to enable).
+    if app.config.get("BEHIND_PROXY"):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+    # Set preferred URL scheme so url_for() uses the right scheme even without a request context
+    if app.config.get("PREFERRED_URL_SCHEME"):
+        app.config["PREFERRED_URL_SCHEME"] = app.config["PREFERRED_URL_SCHEME"]
 
     # Initialize CORS
     CORS(app)
