@@ -98,15 +98,18 @@ async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, re
         )
         return
 
+    # Mark closed in DB first
     bot.db.close_ticket(str(interaction.channel.id), reason)
+
+    # Send the closing embed
     embed = create_close_embed(interaction.user, reason)
     await interaction.response.send_message(embed=embed)
 
-    # Move to Closed Tickets category and lock from everyone except admins + bot
     channel = interaction.channel
     guild = interaction.guild
-    closed_category = await _get_or_create_closed_category(bot, guild)
 
+    # Try to move to Closed Tickets category and lock permissions
+    closed_category = await _get_or_create_closed_category(bot, guild)
     new_overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
         guild.me: discord.PermissionOverwrite(
@@ -122,9 +125,22 @@ async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, re
             overwrites=new_overwrites,
             reason="Ticket closed",
         )
+    except discord.Forbidden:
+        # Bot lacks Manage Channels — log it but continue so the delete button still appears
+        import logging
+        logging.getLogger(__name__).warning(
+            "Could not move ticket channel %s to Closed Tickets category — missing Manage Channels permission.",
+            channel.id,
+        )
+    except Exception:
+        pass
+
+    # Always post the delete button so staff can clean up the channel
+    try:
         delete_view = TicketDeleteView(bot)
         await channel.send(
-            "🔒 **Ticket closed.** Only admins can see this channel. Use the button below or `/delete` to permanently remove it.",
+            "🔒 **Ticket closed.** Only admins can see this channel.\n"
+            "Use the button below or `/delete` to permanently remove it.",
             view=delete_view,
         )
     except discord.Forbidden:

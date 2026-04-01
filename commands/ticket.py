@@ -13,7 +13,7 @@ from utils.embeds import (
     create_stats_embed
 )
 from config import Config
-from utils.ticket_creation import begin_ticket_creation, TicketDeleteView
+from utils.ticket_creation import begin_ticket_creation, TicketDeleteView, _execute_close
 
 
 class TicketCommands(commands.Cog):
@@ -79,59 +79,21 @@ class TicketCommands(commands.Cog):
                     ephemeral=True
                 )
                 return
-            
-            # Get ticket info
-            ticket = self.db.get_ticket_by_channel(str(interaction.channel.id))
-            if not ticket:
-                await interaction.response.send_message(
-                    embed=create_error_embed("Ticket not found in database."),
-                    ephemeral=True
-                )
-                return
-            
-            # Check permissions (ticket owner or admin)
-            is_owner = str(interaction.user.id) == ticket['user_id']
-            is_admin = interaction.user.guild_permissions.administrator
-            
-            if not (is_owner or is_admin):
-                await interaction.response.send_message(
-                    embed=create_permission_error_embed(),
-                    ephemeral=True
-                )
-                return
-            
-            # Check if already closed
-            if ticket['status'] == 'closed':
-                await interaction.response.send_message(
-                    embed=create_error_embed("This ticket is already closed."),
-                    ephemeral=True
-                )
-                return
-            
-            # Update database with reason
-            self.db.close_ticket(str(interaction.channel.id), reason)
-            
-            # Send closing message
-            embed = create_close_embed(interaction.user, reason)
-            await interaction.response.send_message(embed=embed)
-            
-            # Wait a bit then delete channel
-            import asyncio
-            await asyncio.sleep(5)
-            await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
-            
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                embed=create_error_embed(
-                    "I don't have permission to delete this channel."
-                ),
-                ephemeral=True
-            )
+
+            # Delegate to the shared close logic (same as the Close button)
+            await _execute_close(self.bot, interaction, reason)
+
         except Exception as e:
-            await interaction.response.send_message(
-                embed=create_error_embed(f"An error occurred: {str(e)}"),
-                ephemeral=True
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    embed=create_error_embed(f"An error occurred: {str(e)}"),
+                    ephemeral=True
+                )
     
     @app_commands.command(name="claim", description="Claim the current ticket (staff only)")
     async def claim_ticket(self, interaction: discord.Interaction):
