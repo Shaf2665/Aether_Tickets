@@ -13,7 +13,7 @@ from utils.embeds import (
     create_stats_embed
 )
 from config import Config
-from utils.ticket_creation import begin_ticket_creation
+from utils.ticket_creation import begin_ticket_creation, TicketDeleteView
 
 
 class TicketCommands(commands.Cog):
@@ -294,6 +294,47 @@ class TicketCommands(commands.Cog):
             await interaction.response.send_message(
                 embed=create_error_embed(f"An error occurred: {str(e)}"),
                 ephemeral=True
+            )
+
+
+    @app_commands.command(name="delete", description="Permanently delete a closed ticket channel (admin only)")
+    async def delete_ticket(self, interaction: discord.Interaction):
+        """Permanently delete a closed ticket channel."""
+        try:
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message(
+                    embed=create_permission_error_embed(),
+                    ephemeral=True,
+                )
+                return
+
+            ticket = self.db.get_ticket_by_channel(str(interaction.channel.id))
+            if not ticket:
+                await interaction.response.send_message(
+                    embed=create_error_embed("This is not a ticket channel."),
+                    ephemeral=True,
+                )
+                return
+
+            if ticket["status"] != "closed":
+                await interaction.response.send_message(
+                    embed=create_error_embed("Only closed tickets can be deleted. Use `/close` first."),
+                    ephemeral=True,
+                )
+                return
+
+            await interaction.response.send_message("🗑️ Deleting ticket...", ephemeral=True)
+            await interaction.channel.delete(reason=f"Ticket deleted by {interaction.user}")
+
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                embed=create_error_embed("I don't have permission to delete this channel."),
+                ephemeral=True,
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=create_error_embed(f"An error occurred: {str(e)}"),
+                ephemeral=True,
             )
 
 

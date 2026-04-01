@@ -47,8 +47,28 @@ def _is_staff(bot: commands.Bot, user: discord.Member) -> bool:
     return False
 
 
+async def _get_or_create_closed_category(guild: discord.Guild) -> Optional[discord.CategoryChannel]:
+    """Find or create the 'Closed Tickets' category (admin + bot eyes only)."""
+    category = discord.utils.get(guild.categories, name="Closed Tickets")
+    if category:
+        return category
+    try:
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                manage_channels=True,
+                read_message_history=True,
+            ),
+        }
+        return await guild.create_category("Closed Tickets", overwrites=overwrites)
+    except discord.Forbidden:
+        return None
+
+
 async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, reason: str = None) -> None:
-    """Shared close logic used by the button and /close command."""
+    """Shared close logic: marks DB closed, moves channel to Closed Tickets, posts delete view."""
     ticket = bot.db.get_ticket_by_channel(str(interaction.channel.id))
     if not ticket:
         await interaction.response.send_message(
@@ -72,9 +92,32 @@ async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, re
     bot.db.close_ticket(str(interaction.channel.id), reason)
     embed = create_close_embed(interaction.user, reason)
     await interaction.response.send_message(embed=embed)
-    await asyncio.sleep(5)
+
+    # Move to Closed Tickets category and lock from everyone except admins + bot
+    channel = interaction.channel
+    guild = interaction.guild
+    closed_category = await _get_or_create_closed_category(guild)
+
+    new_overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        guild.me: discord.PermissionOverwrite(
+            view_channel=True,
+            send_messages=True,
+            manage_channels=True,
+            read_message_history=True,
+        ),
+    }
     try:
-        await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
+        await channel.edit(
+            category=closed_category,
+            overwrites=new_overwrites,
+            reason="Ticket closed",
+        )
+        delete_view = TicketDeleteView(bot)
+        await channel.send(
+            "🔒 **Ticket closed.** Only admins can see this channel. Use the button below or `/delete` to permanently remove it.",
+            view=delete_view,
+        )
     except discord.Forbidden:
         pass
 
@@ -147,6 +190,36 @@ class TicketActionView(discord.ui.View):
     )
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketCloseModal(self.bot))
+
+
+class TicketDeleteView(discord.ui.View):
+    """Persistent view posted in closed ticket channels with a Delete button (admin only)."""
+
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+
+    @discord.ui.button(
+        label="Delete Ticket",
+        style=discord.ButtonStyle.danger,
+        emoji="🗑️",
+        custom_id="ticket_action_delete",
+    )
+    async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                embed=create_error_embed("Only admins can permanently delete tickets."),
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message("🗑️ Deleting ticket...", ephemeral=True)
+        try:
+            await interaction.channel.delete(reason=f"Ticket deleted by {interaction.user}")
+        except discord.Forbidden:
+            await interaction.followup.send(
+                embed=create_error_embed("I don't have permission to delete this channel."),
+                ephemeral=True,
+            )
 
 
 async def begin_ticket_creation(bot: commands.Bot, interaction: discord.Interaction) -> None:
