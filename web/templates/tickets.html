@@ -80,12 +80,17 @@
                             <strong><i class="bi bi-hash"></i> {{ ticket.ticket_id }}</strong>
                         </td>
                         <td>
-                            <code class="text-muted small">{{ ticket.user_id }}</code>
+                            <span class="fw-semibold">{{ ticket.user_display }}</span>
+                            <br><code class="text-muted" style="font-size:0.7rem">{{ ticket.user_id }}</code>
                         </td>
                         <td>
                             {% if ticket.status == 'open' %}
                             <span class="badge bg-success">
                                 <i class="bi bi-check-circle"></i> Open
+                            </span>
+                            {% elif ticket.status == 'deleted' %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-trash"></i> Deleted
                             </span>
                             {% else %}
                             <span class="badge bg-secondary">
@@ -95,7 +100,7 @@
                         </td>
                         <td>
                             {% if ticket.claimed_by %}
-                            <code class="text-muted small">{{ ticket.claimed_by }}</code>
+                            <span class="fw-semibold">{{ ticket.claimed_display or ticket.claimed_by }}</span>
                             {% else %}
                             <span class="badge bg-warning text-dark">Unclaimed</span>
                             {% endif %}

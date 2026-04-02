@@ -76,6 +76,61 @@ async def _get_or_create_closed_category(
         return None
 
 
+async def _execute_close_system(
+    bot: commands.Bot,
+    channel: discord.TextChannel,
+    guild: discord.Guild,
+    reason: str = None,
+) -> None:
+    """Close a ticket programmatically (no interaction — used by auto-close task)."""
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    ticket = bot.db.get_ticket_by_channel(str(channel.id))
+    if not ticket or ticket["status"] != "open":
+        return
+
+    bot.db.close_ticket(str(channel.id), reason)
+
+    embed = discord.Embed(
+        title="Ticket Auto-Closed",
+        description=f"This ticket was automatically closed due to inactivity.",
+        color=discord.Color.orange(),
+    )
+    if reason:
+        embed.add_field(name="Reason", value=reason, inline=False)
+    embed.set_footer(text="Ticket System")
+
+    try:
+        await channel.send(embed=embed)
+    except discord.Forbidden:
+        pass
+
+    # Lock channel permissions
+    new_overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        guild.me: discord.PermissionOverwrite(
+            view_channel=True, send_messages=True,
+            manage_channels=True, read_message_history=True,
+        ),
+    }
+    try:
+        await channel.edit(overwrites=new_overwrites, reason="Ticket auto-closed")
+    except discord.Forbidden:
+        _log.warning("Could not lock auto-closed ticket channel %s", channel.id)
+
+    # Post delete button
+    try:
+        delete_view = TicketDeleteView(bot)
+        await channel.send(
+            "🔒 **Ticket auto-closed.** Only admins can see this channel.\n"
+            "Use the button below or `/delete` to permanently remove it.",
+            view=delete_view,
+        )
+    except discord.Forbidden:
+        pass
+
+
 async def _execute_close(bot: commands.Bot, interaction: discord.Interaction, reason: str = None) -> None:
     """Shared close logic: marks DB closed, moves channel to Closed Tickets, posts delete view."""
     ticket = bot.db.get_ticket_by_channel(str(interaction.channel.id))
@@ -464,6 +519,8 @@ async def finalize_ticket_creation(
         guild_ticket_category_id=int(row["id"]),
         initial_description=description,
     )
+    # Set initial activity timestamp
+    bot.db.update_ticket_activity(str(channel.id))
     ticket_data = bot.db.get_ticket_by_channel(str(channel.id))
 
     embed = create_ticket_embed(

@@ -2,7 +2,7 @@
 
 A Discord ticket bot built with Python and discord.py, with a Flask web dashboard for admins. Users create private support channels; staff manage them from Discord or a browser.
 
-**Current Version: 1.5**
+**Current Version: 1.6**
 
 ---
 
@@ -11,12 +11,17 @@ A Discord ticket bot built with Python and discord.py, with a Flask web dashboar
 | Feature | Description |
 |---|---|
 | Ticket Creation | `/ticket` command or panel button creates a private channel |
-| Ticket Closing | `/close [reason]` or Close button moves channel to Closed category |
+| Ticket Closing | `/close [reason]` or Close button locks the channel and posts a delete button |
 | Ticket Claiming | `/claim` / `/unclaim` for staff |
 | Categories | Per-server ticket categories with dropdown selection |
 | Interactive Setup | `/setup start` — 6-step wizard, no config files needed |
 | Statistics | `/ticketstats` for admins |
 | Web Dashboard | Flask UI with Discord OAuth — view, search, claim, close tickets |
+| Ticket Chat Sync | Messages sent in Discord appear in the Web UI; messages sent from the Web UI are forwarded to Discord in real-time |
+| Web UI → Discord Sync | Claim, unclaim, and close actions in the Web UI are reflected in the Discord channel within seconds |
+| Ticket Auto-Close | Inactive tickets are automatically closed after a configurable number of hours (set in the Web UI dashboard) |
+| Discord Delete Sync | Deleting a ticket channel in Discord marks it as deleted in the Web UI |
+| Username Display | Ticket lists show Discord display names instead of raw user IDs |
 | Multi-Guild | Each server has isolated config and ticket data |
 | Pterodactyl Ready | Auto-clone from GitHub, auto-update on restart, no file uploads |
 
@@ -97,8 +102,8 @@ The bot will guide you through:
 2. Support / staff role
 3. Ping role for new tickets
 4. Ticket category
-5. Closed tickets category
-6. Custom panel title and description
+5. Custom panel title
+6. Custom panel description
 
 ### Updating the Bot
 
@@ -268,6 +273,10 @@ See **[FLASK_SETUP.md](FLASK_SETUP.md)** for full setup instructions.
 **Quick summary:**
 - Login with Discord (OAuth2) — no separate credentials
 - View ticket stats, search/filter tickets, claim/close from the web
+- **Ticket Chat** — read and send messages that sync with the Discord channel in real-time
+- **Auto-Close** — configure inactivity timeout (hours) per server from the dashboard
+- Claim/unclaim/close actions are reflected in Discord within seconds
+- Username display — shows Discord display names instead of raw user IDs
 - Multi-guild support
 - REST API endpoints at `/api/...`
 

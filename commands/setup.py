@@ -431,54 +431,12 @@ class SetupCommands(commands.Cog):
                 embed = create_setup_embed(
                     5,
                     "Ticket category set!\n\n"
-                    "Which category should **closed tickets** be moved to?\n\n"
-                    "**Important:** This category should only be visible to admins.\n"
-                    "• Type the **category name** (e.g. `Closed Tickets`)\n"
-                    "• Or type the **category ID**\n"
-                    "• Or type `none` to auto-create a 'Closed Tickets' category on first close"
-                )
-                await self.safe_send(message, embed=embed)
-
-            elif step == 5:  # Closed Ticket Category
-                if message.content.lower().strip() in ['none', 'skip', '']:
-                    data['closed_category_id'] = None
-                else:
-                    category_id = self.extract_category_id(message.content, guild)
-                    if not category_id:
-                        await self.safe_send(
-                            message,
-                            embed=create_error_embed(
-                                "❌ Category not found!\n\n"
-                                "• Type the exact category name (case-sensitive)\n"
-                                "• Or provide the category ID\n\n"
-                                "Type `none` to auto-create one."
-                            )
-                        )
-                        return
-
-                    category = discord.utils.get(guild.categories, id=category_id)
-                    if not category:
-                        await self.safe_send(
-                            message,
-                            embed=create_error_embed(
-                                "❌ Category not found! Please try again or type `none` to auto-create one."
-                            )
-                        )
-                        return
-
-                    data['closed_category_id'] = str(category_id)
-
-                session['step'] = 6
-
-                embed = create_setup_embed(
-                    6,
-                    "Closed tickets category set!\n\n"
                     "Would you like to customize the panel title?\n"
                     "Type a custom title or 'none' to use the default."
                 )
                 await self.safe_send(message, embed=embed)
 
-            elif step == 6:  # Panel Title
+            elif step == 5:  # Panel Title
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['panel_title'] = None
                 else:
@@ -491,17 +449,17 @@ class SetupCommands(commands.Cog):
                         return
                     data['panel_title'] = title
 
-                session['step'] = 7
+                session['step'] = 6
 
                 embed = create_setup_embed(
-                    7,
+                    6,
                     "Title set!\n\n"
                     "Would you like to customize the panel description?\n"
                     "Type a custom description or 'none' to use the default."
                 )
                 await self.safe_send(message, embed=embed)
 
-            elif step == 7:  # Panel Description
+            elif step == 6:  # Panel Description
                 if message.content.lower().strip() in ['none', 'skip', '']:
                     data['panel_description'] = None
                 else:

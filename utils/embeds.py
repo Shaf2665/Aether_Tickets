@@ -387,18 +387,6 @@ def create_config_view_embed(config: dict, guild: discord.Guild) -> discord.Embe
     else:
         embed.add_field(name="Ticket Category", value="Not set", inline=True)
 
-    # Closed Ticket Category
-    closed_cat_id = config.get('closed_category_id')
-    if closed_cat_id:
-        closed_cat = discord.utils.get(guild.categories, id=int(closed_cat_id))
-        embed.add_field(
-            name="Closed Tickets Category",
-            value=closed_cat.name if closed_cat else "Category not found",
-            inline=True,
-        )
-    else:
-        embed.add_field(name="Closed Tickets Category", value="Auto-create on first close", inline=True)
-    
     # Custom Title
     panel_title = config.get('panel_title')
     if panel_title:

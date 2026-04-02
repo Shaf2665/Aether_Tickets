@@ -62,6 +62,49 @@ class TicketDatabase:
             )
         """)
 
+        # ── ticket_messages table (chat sync) ────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                discord_message_id TEXT,
+                author_id TEXT NOT NULL,
+                author_name TEXT NOT NULL,
+                author_avatar TEXT,
+                content TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'discord',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
+            )
+        """)
+
+        # ── discord_users cache table (username resolution) ───────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS discord_users (
+                user_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                display_name TEXT,
+                avatar_url TEXT,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # ── bot_actions table (Web UI → Discord task queue) ───────────────────
+        # The Flask app writes pending actions here; the bot polls and executes them.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bot_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT NOT NULL,
+                ticket_id INTEGER,
+                channel_id TEXT,
+                guild_id TEXT,
+                payload TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                processed_at TEXT
+            )
+        """)
+
         # ── Migrations: add columns that may not exist in older databases ─────
         migrations = [
             "ALTER TABLE tickets ADD COLUMN claimed_by TEXT",
@@ -71,6 +114,10 @@ class TicketDatabase:
             "ALTER TABLE tickets ADD COLUMN guild_ticket_category_id INTEGER",
             "ALTER TABLE tickets ADD COLUMN initial_description TEXT",
             "ALTER TABLE guild_config ADD COLUMN closed_category_id TEXT",
+            # v1.6 additions
+            "ALTER TABLE tickets ADD COLUMN deleted_at TEXT",
+            "ALTER TABLE tickets ADD COLUMN last_activity_at TEXT",
+            "ALTER TABLE guild_config ADD COLUMN autoclose_hours INTEGER",
         ]
         for sql in migrations:
             try:
@@ -779,3 +826,232 @@ class TicketDatabase:
 
         return success
 
+    # ── Patch 2: channel deletion sync ───────────────────────────────────────
+
+    def mark_ticket_deleted(self, channel_id: str) -> bool:
+        """Mark a ticket's Discord channel as deleted (soft-delete for web UI)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        deleted_at = datetime.datetime.utcnow().isoformat()
+        cursor.execute("""
+            UPDATE tickets
+            SET deleted_at = ?, status = 'deleted'
+            WHERE channel_id = ? AND status != 'deleted'
+        """, (deleted_at, str(channel_id)))
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return success
+
+    # ── Feature 1: auto-close helpers ────────────────────────────────────────
+
+    def update_ticket_activity(self, channel_id: str) -> None:
+        """Update last_activity_at for a ticket channel (called on new messages)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.datetime.utcnow().isoformat()
+        cursor.execute("""
+            UPDATE tickets SET last_activity_at = ? WHERE channel_id = ? AND status = 'open'
+        """, (now, str(channel_id)))
+        conn.commit()
+        conn.close()
+
+    def get_inactive_tickets(self, guild_id: str, hours: int) -> List[Dict]:
+        """Return open tickets with no activity for more than `hours` hours."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cutoff = (datetime.datetime.utcnow() - datetime.timedelta(hours=hours)).isoformat()
+        cursor.execute("""
+            SELECT * FROM tickets
+            WHERE guild_id = ? AND status = 'open'
+              AND (
+                  (last_activity_at IS NOT NULL AND last_activity_at < ?)
+                  OR (last_activity_at IS NULL AND created_at < ?)
+              )
+        """, (str(guild_id), cutoff, cutoff))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_autoclose_hours(self, guild_id: str) -> Optional[int]:
+        """Return configured auto-close hours for a guild, or None if disabled."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT autoclose_hours FROM guild_config WHERE guild_id = ?", (str(guild_id),))
+        row = cursor.fetchone()
+        conn.close()
+        if row and row["autoclose_hours"]:
+            return int(row["autoclose_hours"])
+        return None
+
+    def set_autoclose_hours(self, guild_id: str, hours: Optional[int]) -> bool:
+        """Set or clear auto-close hours for a guild."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE guild_config SET autoclose_hours = ? WHERE guild_id = ?",
+            (hours, str(guild_id))
+        )
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return success
+
+    # ── Feature 2: ticket message sync ───────────────────────────────────────
+
+    def save_ticket_message(
+        self,
+        ticket_id: int,
+        author_id: str,
+        author_name: str,
+        content: str,
+        source: str = "discord",
+        discord_message_id: Optional[str] = None,
+        author_avatar: Optional[str] = None,
+    ) -> int:
+        """Save a chat message for a ticket. Returns new message id."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        created_at = datetime.datetime.utcnow().isoformat()
+        cursor.execute("""
+            INSERT INTO ticket_messages
+                (ticket_id, discord_message_id, author_id, author_name, author_avatar,
+                 content, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (ticket_id, discord_message_id, str(author_id), author_name,
+              author_avatar, content, source, created_at))
+        msg_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return msg_id
+
+    def get_ticket_messages(self, ticket_id: int, limit: int = 200) -> List[Dict]:
+        """Return messages for a ticket ordered oldest-first."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM ticket_messages
+            WHERE ticket_id = ?
+            ORDER BY created_at ASC
+            LIMIT ?
+        """, (ticket_id, limit))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def message_already_saved(self, discord_message_id: str) -> bool:
+        """Check if a Discord message ID was already stored (dedup guard)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM ticket_messages WHERE discord_message_id = ?",
+            (str(discord_message_id),)
+        )
+        exists = cursor.fetchone() is not None
+        conn.close()
+        return exists
+
+    # ── Feature 3: user cache ─────────────────────────────────────────────────
+
+    def upsert_discord_user(
+        self,
+        user_id: str,
+        username: str,
+        display_name: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+    ) -> None:
+        """Insert or update a Discord user in the local cache."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.datetime.utcnow().isoformat()
+        cursor.execute("""
+            INSERT INTO discord_users (user_id, username, display_name, avatar_url, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                display_name = excluded.display_name,
+                avatar_url = excluded.avatar_url,
+                updated_at = excluded.updated_at
+        """, (str(user_id), username, display_name, avatar_url, now))
+        conn.commit()
+        conn.close()
+
+    def get_discord_user(self, user_id: str) -> Optional[Dict]:
+        """Return cached Discord user info or None."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM discord_users WHERE user_id = ?", (str(user_id),))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def get_guild_tickets_all(self, guild_id: str, status: str = None) -> List[Dict]:
+        """Return all tickets for a guild (no pagination) — used for search/export."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        if status:
+            cursor.execute("""
+                SELECT * FROM tickets WHERE guild_id = ? AND status = ?
+                ORDER BY created_at DESC
+            """, (str(guild_id), status))
+        else:
+            cursor.execute("""
+                SELECT * FROM tickets WHERE guild_id = ? AND status != 'deleted'
+                ORDER BY created_at DESC
+            """, (str(guild_id),))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    # ── Bot action queue (Web UI → Discord) ──────────────────────────────────
+
+    def enqueue_bot_action(
+        self,
+        action: str,
+        ticket_id: int = None,
+        channel_id: str = None,
+        guild_id: str = None,
+        payload: str = None,
+    ) -> int:
+        """Queue an action for the bot to execute against Discord.
+
+        Actions: 'claim', 'unclaim', 'close', 'send_message'
+        Returns the new action row id.
+        """
+        import json as _json
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        created_at = datetime.datetime.utcnow().isoformat()
+        cursor.execute("""
+            INSERT INTO bot_actions
+                (action, ticket_id, channel_id, guild_id, payload, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?)
+        """, (action, ticket_id, channel_id, guild_id, payload, created_at))
+        row_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return row_id
+
+    def get_pending_bot_actions(self) -> List[Dict]:
+        """Return all pending bot actions ordered oldest-first."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM bot_actions WHERE status = 'pending'
+            ORDER BY created_at ASC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def mark_bot_action_done(self, action_id: int, status: str = "done") -> None:
+        """Mark a bot action as done or failed."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        processed_at = datetime.datetime.utcnow().isoformat()
+        cursor.execute(
+            "UPDATE bot_actions SET status = ?, processed_at = ? WHERE id = ?",
+            (status, processed_at, action_id)
+        )
+        conn.commit()
+        conn.close()

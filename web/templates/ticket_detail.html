@@ -3,7 +3,7 @@
 {% block title %}Ticket #{{ ticket.ticket_id }} - Aether Tickets{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <h1 class="mb-0">
@@ -15,20 +15,21 @@
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="row">
-        <!-- Ticket Details -->
+    <div class="row g-4">
+        <!-- Left: Ticket Info + Chat -->
         <div class="col-lg-8">
+
+            <!-- Ticket Details Card -->
             <div class="card mb-4">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-info-circle"></i> Ticket Information
-                    </h5>
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Ticket Information</h5>
                     <div>
                         {% if ticket.status == 'open' %}
-                        <span class="badge bg-success">Open</span>
+                        <span class="badge bg-success fs-6">Open</span>
+                        {% elif ticket.status == 'deleted' %}
+                        <span class="badge bg-danger fs-6">Deleted</span>
                         {% else %}
-                        <span class="badge bg-secondary">Closed</span>
+                        <span class="badge bg-secondary fs-6">Closed</span>
                         {% endif %}
                     </div>
                 </div>
@@ -36,7 +37,8 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Created By</p>
-                            <code class="d-block">{{ ticket.user_id }}</code>
+                            <p class="mb-0 fw-semibold">{{ ticket.user_display }}</p>
+                            <code class="text-muted small">{{ ticket.user_id }}</code>
                         </div>
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Created At</p>
@@ -48,7 +50,8 @@
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Claimed By</p>
                             {% if ticket.claimed_by %}
-                            <code class="d-block">{{ ticket.claimed_by }}</code>
+                            <p class="mb-0 fw-semibold">{{ ticket.claimed_display or ticket.claimed_by }}</p>
+                            <code class="text-muted small">{{ ticket.claimed_by }}</code>
                             {% else %}
                             <span class="text-muted">Not claimed</span>
                             {% endif %}
@@ -64,7 +67,7 @@
                     </div>
 
                     {% if ticket.closed_at %}
-                    <div class="row">
+                    <div class="row mb-3">
                         <div class="col-md-6">
                             <p class="text-muted mb-1">Closed At</p>
                             <p class="mb-0">{{ ticket.closed_at[:19].replace('T', ' ') }}</p>
@@ -88,27 +91,79 @@
                 </div>
             </div>
 
-            <!-- Channel Info -->
+            <!-- Chat Panel (Feature 2) -->
             <div class="card">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">
-                        <i class="bi bi-chat"></i> Discord Channel
-                    </h5>
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Ticket Chat</h5>
+                    <small class="text-muted">Messages sync with Discord in real-time</small>
                 </div>
-                <div class="card-body">
-                    <p class="text-muted mb-1">Channel ID</p>
-                    <code class="d-block">{{ ticket.channel_id }}</code>
+                <div class="card-body p-0">
+                    <!-- Message list -->
+                    <div id="chatMessages" class="chat-messages p-3" style="height:400px;overflow-y:auto;background:#f8f9fa;">
+                        {% if messages %}
+                            {% for msg in messages %}
+                            <div class="chat-message mb-3 {% if msg.source == 'web' %}chat-web{% else %}chat-discord{% endif %}">
+                                <div class="d-flex align-items-start gap-2">
+                                    {% if msg.author_avatar %}
+                                    <img src="{{ msg.author_avatar }}" alt="{{ msg.author_name }}" class="rounded-circle" width="32" height="32">
+                                    {% else %}
+                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" style="width:32px;height:32px;font-size:0.8rem;flex-shrink:0;">
+                                        {{ msg.author_name[:1].upper() }}
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <strong class="small">{{ msg.author_name }}</strong>
+                                            <span class="badge {% if msg.source == 'web' %}bg-info{% else %}bg-blurple{% endif %} badge-source">
+                                                {{ msg.source | capitalize }}
+                                            </span>
+                                            <small class="text-muted">{{ msg.created_at[:19].replace('T', ' ') }}</small>
+                                        </div>
+                                        <div class="chat-bubble {% if msg.source == 'web' %}bubble-web{% else %}bubble-discord{% endif %}">
+                                            <p class="mb-0 pre-wrap">{{ msg.content }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div id="noMessages" class="text-center text-muted py-5">
+                            <i class="bi bi-chat-square-dots fs-2 d-block mb-2"></i>
+                            No messages yet. Messages sent in Discord will appear here.
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Message input (only for open tickets) -->
+                    {% if ticket.status == 'open' %}
+                    <div class="p-3 border-top">
+                        <div class="input-group">
+                            <textarea id="msgInput" class="form-control" rows="2"
+                                      placeholder="Type a message to send to this ticket..."
+                                      style="resize:none;"></textarea>
+                            <button class="btn btn-primary" id="sendMsgBtn" type="button">
+                                <i class="bi bi-send"></i> Send
+                            </button>
+                        </div>
+                        <small class="text-muted mt-1 d-block">
+                            <i class="bi bi-info-circle"></i>
+                            Messages sent here are forwarded to the Discord ticket channel automatically.
+                        </small>
+                    </div>
+                    {% else %}
+                    <div class="p-3 border-top text-center text-muted">
+                        <i class="bi bi-lock"></i> This ticket is closed — no new messages can be sent.
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- Actions Sidebar -->
+        <!-- Right: Actions Sidebar -->
         <div class="col-lg-4">
             <div class="card sticky-top" style="top: 20px;">
                 <div class="card-header bg-light">
-                    <h5 class="mb-0">
-                        <i class="bi bi-sliders"></i> Actions
-                    </h5>
+                    <h5 class="mb-0"><i class="bi bi-sliders"></i> Actions</h5>
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('tickets.update_ticket', ticket_id=ticket.ticket_id) }}">
@@ -119,7 +174,9 @@
                             <button type="submit" name="action" value="unclaim" class="btn btn-warning w-100 mb-2">
                                 <i class="bi bi-person-x"></i> Unclaim Ticket
                             </button>
-                            <small class="text-muted d-block">Claimed by: {{ ticket.claimed_by }}</small>
+                            <small class="text-muted d-block">
+                                Claimed by: <strong>{{ ticket.claimed_display or ticket.claimed_by }}</strong>
+                            </small>
                             {% else %}
                             <button type="submit" name="action" value="claim" class="btn btn-primary w-100">
                                 <i class="bi bi-person-check"></i> Claim Ticket
@@ -135,9 +192,10 @@
                             </button>
                         </div>
                         {% else %}
-                        <!-- Closed Status -->
+                        <!-- Closed/Deleted Status -->
                         <div class="alert alert-info mb-0">
-                            <i class="bi bi-check-circle"></i> This ticket is closed
+                            <i class="bi bi-check-circle"></i>
+                            This ticket is {{ ticket.status }}.
                         </div>
                         {% endif %}
                     </form>
@@ -146,25 +204,29 @@
 
                     <!-- Statistics -->
                     <div class="mb-3">
-                        <p class="text-muted mb-2">
-                            <i class="bi bi-hourglass"></i> Time
-                        </p>
-                        {% set created = ticket.created_at[:10] %}
-                        {% set closed = ticket.closed_at[:10] if ticket.closed_at else None %}
-                        <small class="d-block">Created: {{ created }}</small>
-                        {% if closed %}
-                        <small class="d-block">Closed: {{ closed }}</small>
+                        <p class="text-muted mb-2"><i class="bi bi-hourglass"></i> Time</p>
+                        <small class="d-block">Created: {{ ticket.created_at[:19].replace('T', ' ') }}</small>
+                        {% if ticket.closed_at %}
+                        <small class="d-block">Closed: {{ ticket.closed_at[:19].replace('T', ' ') }}</small>
                         {% endif %}
+                    </div>
+
+                    <!-- Channel Info -->
+                    <div class="mb-3">
+                        <p class="text-muted mb-2"><i class="bi bi-hash"></i> Discord Channel</p>
+                        <code class="small">{{ ticket.channel_id }}</code>
                     </div>
 
                     <!-- Status Badge -->
                     <div>
-                        <p class="text-muted mb-2">
-                            <i class="bi bi-tag"></i> Status
-                        </p>
+                        <p class="text-muted mb-2"><i class="bi bi-tag"></i> Status</p>
                         {% if ticket.status == 'open' %}
                         <span class="badge bg-success w-100 py-2">
                             <i class="bi bi-hourglass-split"></i> Open
+                        </span>
+                        {% elif ticket.status == 'deleted' %}
+                        <span class="badge bg-danger w-100 py-2">
+                            <i class="bi bi-trash"></i> Deleted
                         </span>
                         {% else %}
                         <span class="badge bg-secondary w-100 py-2">
@@ -207,9 +269,117 @@
 </div>
 
 <style>
-    .pre-wrap {
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
+.pre-wrap { white-space: pre-wrap; word-wrap: break-word; }
+.chat-messages { scroll-behavior: smooth; }
+.chat-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    display: inline-block;
+    max-width: 100%;
+    word-break: break-word;
+}
+.bubble-discord { background: #ffffff; border: 1px solid #dee2e6; }
+.bubble-web { background: #dbeafe; border: 1px solid #93c5fd; }
+.bg-blurple { background-color: #5865F2 !important; color: #fff; }
+.badge-source { font-size: 0.65rem; }
 </style>
+
+{% if ticket.status == 'open' %}
+<script>
+(function() {
+    const ticketId = {{ ticket.ticket_id }};
+    const chatBox = document.getElementById('chatMessages');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendMsgBtn');
+
+    // Scroll to bottom on load
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // Poll for new messages every 5 seconds
+    let lastCount = {{ messages | length }};
+    function pollMessages() {
+        fetch('/api/tickets/' + ticketId + '/messages')
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success' && data.data.length !== lastCount) {
+                    lastCount = data.data.length;
+                    renderMessages(data.data);
+                }
+            })
+            .catch(() => {});
+    }
+    setInterval(pollMessages, 5000);
+
+    function renderMessages(msgs) {
+        const noMsg = document.getElementById('noMessages');
+        if (noMsg) noMsg.remove();
+        chatBox.innerHTML = '';
+        msgs.forEach(msg => {
+            const isWeb = msg.source === 'web';
+            const initials = (msg.author_name || '?')[0].toUpperCase();
+            const avatarHtml = msg.author_avatar
+                ? `<img src="${msg.author_avatar}" class="rounded-circle" width="32" height="32" alt="${escHtml(msg.author_name)}">`
+                : `<div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" style="width:32px;height:32px;font-size:0.8rem;flex-shrink:0;">${initials}</div>`;
+            const badgeClass = isWeb ? 'bg-info' : 'bg-blurple';
+            const bubbleClass = isWeb ? 'bubble-web' : 'bubble-discord';
+            const sourceLabel = isWeb ? 'Web' : 'Discord';
+            const time = (msg.created_at || '').replace('T', ' ').substring(0, 19);
+            const div = document.createElement('div');
+            div.className = 'chat-message mb-3';
+            div.innerHTML = `
+                <div class="d-flex align-items-start gap-2">
+                    ${avatarHtml}
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <strong class="small">${escHtml(msg.author_name)}</strong>
+                            <span class="badge ${badgeClass} badge-source">${sourceLabel}</span>
+                            <small class="text-muted">${time}</small>
+                        </div>
+                        <div class="chat-bubble ${bubbleClass}">
+                            <p class="mb-0 pre-wrap">${escHtml(msg.content)}</p>
+                        </div>
+                    </div>
+                </div>`;
+            chatBox.appendChild(div);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function escHtml(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Send message
+    function sendMessage() {
+        const content = msgInput.value.trim();
+        if (!content) return;
+        sendBtn.disabled = true;
+        fetch('/api/tickets/' + ticketId + '/messages', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: content})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                msgInput.value = '';
+                pollMessages();
+            } else {
+                alert(data.error || 'Failed to send message');
+            }
+        })
+        .catch(() => alert('Network error. Please try again.'))
+        .finally(() => { sendBtn.disabled = false; });
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

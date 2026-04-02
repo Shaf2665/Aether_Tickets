@@ -126,6 +126,47 @@
         </div>
     </div>
 
+    <!-- Auto-Close Settings (Feature 1) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> Auto-Close Settings
+                    </h5>
+                    <span class="badge {% if autoclose_hours %}bg-success{% else %}bg-secondary{% endif %}" id="autocloseStatus">
+                        {% if autoclose_hours %}Enabled ({{ autoclose_hours }}h){% else %}Disabled{% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Automatically close tickets that have had no activity for the specified number of hours.
+                        Set to <strong>0</strong> or leave empty to disable.
+                    </p>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label for="autocloseHours" class="form-label">Inactivity Timeout (hours)</label>
+                            <input type="number" class="form-control" id="autocloseHours"
+                                   min="1" max="720" placeholder="e.g. 24"
+                                   value="{{ autoclose_hours or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-primary" id="saveAutocloseBtn" type="button">
+                                <i class="bi bi-save"></i> Save Setting
+                            </button>
+                            <button class="btn btn-outline-danger ms-2" id="disableAutocloseBtn" type="button">
+                                <i class="bi bi-x-circle"></i> Disable
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <div id="autocloseMsg" class="d-none"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Recent Tickets -->
     <div class="row">
         <div class="col-12">
@@ -155,18 +196,20 @@
                                     <strong>#{{ ticket.ticket_id }}</strong>
                                 </td>
                                 <td>
-                                    <code class="text-muted">{{ ticket.user_id }}</code>
+                                    <span class="fw-semibold">{{ ticket.user_display }}</span>
                                 </td>
                                 <td>
                                     {% if ticket.status == 'open' %}
                                     <span class="badge bg-success">Open</span>
+                                    {% elif ticket.status == 'deleted' %}
+                                    <span class="badge bg-danger">Deleted</span>
                                     {% else %}
                                     <span class="badge bg-secondary">Closed</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if ticket.claimed_by %}
-                                    <code class="text-muted">{{ ticket.claimed_by }}</code>
+                                    <span>{{ ticket.claimed_display or ticket.claimed_by }}</span>
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -196,9 +239,75 @@
     </div>
 </div>
 
-<!-- Chart.js initialization -->
+<!-- Auto-close + Chart.js scripts -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Auto-close settings
+    const saveBtn = document.getElementById('saveAutocloseBtn');
+    const disableBtn = document.getElementById('disableAutocloseBtn');
+    const hoursInput = document.getElementById('autocloseHours');
+    const statusBadge = document.getElementById('autocloseStatus');
+    const msgDiv = document.getElementById('autocloseMsg');
+
+    function showMsg(text, type) {
+        msgDiv.className = 'alert alert-' + type + ' py-2 mb-0';
+        msgDiv.textContent = text;
+        msgDiv.classList.remove('d-none');
+        setTimeout(() => msgDiv.classList.add('d-none'), 3000);
+    }
+
+    function updateBadge(hours) {
+        if (hours) {
+            statusBadge.className = 'badge bg-success';
+            statusBadge.textContent = 'Enabled (' + hours + 'h)';
+        } else {
+            statusBadge.className = 'badge bg-secondary';
+            statusBadge.textContent = 'Disabled';
+        }
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            const hours = parseInt(hoursInput.value) || null;
+            fetch('/api/settings/autoclose', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hours: hours})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateBadge(data.autoclose_hours);
+                    showMsg('Auto-close setting saved!', 'success');
+                } else {
+                    showMsg(data.error || 'Failed to save', 'danger');
+                }
+            })
+            .catch(() => showMsg('Network error', 'danger'));
+        });
+    }
+
+    if (disableBtn) {
+        disableBtn.addEventListener('click', function() {
+            hoursInput.value = '';
+            fetch('/api/settings/autoclose', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hours: null})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateBadge(null);
+                    showMsg('Auto-close disabled.', 'info');
+                } else {
+                    showMsg(data.error || 'Failed', 'danger');
+                }
+            })
+            .catch(() => showMsg('Network error', 'danger'));
+        });
+    }
+
     // Category chart
     const categoryData = {{ stats.categories | tojson }};
     const categoryLabels = Object.keys(categoryData);
