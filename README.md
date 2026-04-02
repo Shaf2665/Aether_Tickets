@@ -1,415 +1,339 @@
-# Aether_Tickets
+# Aether Tickets
 
-A Discord Ticket Bot built with Python and discord.py that allows users to create private support ticket channels and close them, with all activity logged to an SQLite database.
+A Discord ticket bot built with Python and discord.py, with a Flask web dashboard for admins. Users create private support channels; staff manage them from Discord or a browser.
 
 **Current Version: 1.5**
 
-## What is a Ticket Bot?
-
-A ticket bot helps manage support requests in your Discord server. When someone needs help, they can create a "ticket" which opens a private channel where only they and your staff can chat. This keeps support organized and private.
+---
 
 ## Features
 
-### Core Features
-- **Ticket Creation**: Users can create tickets via `/ticket` command or by clicking a button
-- **Private Channels**: Each ticket creates a private channel visible only to the ticket creator and staff
-- **Ticket Closing**: Close tickets with `/close` command (only in ticket channels)
-- **Close with Reason**: Optional reason parameter when closing tickets (v1.2)
-- **Database Logging**: All ticket activity is logged to SQLite database
-- **Permission Management**: Only ticket owners or admins can close tickets
-- **Support Role**: Optional support role can be granted access to all tickets
+| Feature | Description |
+|---|---|
+| Ticket Creation | `/ticket` command or panel button creates a private channel |
+| Ticket Closing | `/close [reason]` or Close button moves channel to Closed category |
+| Ticket Claiming | `/claim` / `/unclaim` for staff |
+| Categories | Per-server ticket categories with dropdown selection |
+| Interactive Setup | `/setup start` — 6-step wizard, no config files needed |
+| Statistics | `/ticketstats` for admins |
+| Web Dashboard | Flask UI with Discord OAuth — view, search, claim, close tickets |
+| Multi-Guild | Each server has isolated config and ticket data |
+| Pterodactyl Ready | Auto-clone from GitHub, auto-update on restart, no file uploads |
 
-### Ticket Management (v1.2)
-- **Ticket Claiming**: Staff can claim tickets with `/claim` command
-- **Ticket Unclaiming**: Staff can unclaim tickets with `/unclaim` command
-- **Claim Status Display**: Claim status shown in ticket embeds
-- **Admin Statistics**: View comprehensive ticket statistics with `/ticketstats` command (admin-only)
+---
 
-### Interactive Setup (v1.3)
-- **Interactive Setup Command**: Use `/setup start` to configure the ticket panel through an easy step-by-step process
-- **No Manual Configuration**: No need to edit .env files for most options—configure through Discord commands
-- **Per-Guild Configuration**: Each server can have its own ticket panel configuration
-- **Custom Panel Messages**: Customize panel title and description
-- **Role Pinging**: Automatically ping specified roles when tickets are created
-- **Configuration Management**: View, reset, and refresh your configuration with `/setup` commands
+## Hosting Options
 
-### Per-Server Staff (v1.4)
-- **Support Role in Setup**: `/setup start` asks which role counts as staff (ticket access and `/claim` / `/unclaim`)
-- **No .env Required for Staff**: Staff permissions follow `/setup` (with optional `SUPPORT_ROLE_ID` in `.env` as a fallback when no guild support role is set)
+Choose the method that fits your setup:
 
-### Flask Web UI (v1.5)
-- **Discord OAuth Login**: Admins sign in via Discord OAuth 2.0 — no separate credentials needed
-- **Admin Dashboard**: Real-time ticket statistics, open/closed counts, and analytics charts
-- **Ticket Management**: View, search, filter, and paginate tickets from a web browser
-- **Ticket Detail Pages**: Claim or close tickets directly from the web UI
-- **Multi-Guild Support**: Switch between servers you admin — data is isolated per guild
-- **JSON API**: Programmatic access to ticket data via REST endpoints
-- **Responsive Design**: Works on desktop and mobile (Bootstrap 5 + Chart.js)
+- **[Option A — Pterodactyl Panel](#option-a--pterodactyl-panel)** — Recommended for most users. Import the egg, fill in your bot token, done.
+- **[Option B — VPS / Local Server](#option-b--vps--local-server)** — Clone the repo and run with Python directly.
 
-## Requirements
+---
 
-Before you begin, make sure you have:
+## Option A — Pterodactyl Panel
 
-- **Python 3.8 or higher** - [Download Python](https://www.python.org/downloads/)
-- **Discord Bot Token** - You'll create this in the Discord Developer Portal
-- **Discord Server** - A server where you want to use the bot
-- **Administrator Access** - You need admin permissions in your Discord server to set up the bot
+> No file uploads or SSH needed. The egg handles everything automatically.
 
-## Step-by-Step Setup Guide
+### Step 1 — Import the Egg
 
-### Step 1: Install Python Dependencies
+1. Log in to your **Pterodactyl admin panel**.
+2. Go to **Admin → Nests** → select or create a nest (e.g. "Bots").
+3. Click **Import Egg** and upload `egg-aether-tickets.json` from this repository.
 
-1. Open your terminal/command prompt in the project folder
-2. Run this command:
+### Step 2 — Create the Server
+
+1. Go to **Admin → Servers → Create New Server**.
+2. Select the **Aether Tickets** egg.
+3. Set an **Allocation** (any port — the bot doesn't need a public port unless you enable the web dashboard).
+4. Click **Create Server**.
+
+### Step 3 — Installation
+
+Pterodactyl will run the installation script automatically. It will:
+- Install Git, Python, and pip inside the container.
+- Clone this repository from GitHub.
+- Install all Python dependencies.
+
+Wait for the status to change from **Installing** to **Offline** before proceeding.
+
+### Step 4 — Configure the Startup Variables
+
+Go to your server's **Startup** tab and fill in:
+
+| Variable | Required | Description |
+|---|---|---|
+| **Discord Bot Token** | ✅ Yes | Your bot token from the Discord Developer Portal |
+| **Guild ID** | Optional | Your server ID for instant slash command sync |
+| **Auto Update on Restart** | Optional | Pull latest code from GitHub on every start (default: on) |
+| Git Repository URL | Advanced | Pre-filled — only change if you forked the repo |
+| Git Branch | Advanced | Pre-filled as `main` |
+| Database Path | Advanced | Pre-filled as `tickets.db` — do not change |
+
+> **Where to get your Bot Token:**
+> Discord Developer Portal → Your App → Bot → Reset Token → Copy.
+
+### Step 5 — Start the Server
+
+Click **Start**. The bot will launch and print a first-run setup guide in the console.
+
+### Step 6 — Invite the Bot to Your Server
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → Your App → **OAuth2 → URL Generator**.
+2. Scopes: `bot` + `applications.commands`.
+3. Permissions: `Manage Channels`, `Manage Roles`, `Send Messages`, `View Channels`, `Read Message History`, `Embed Links`, `Manage Messages`.
+4. Open the generated URL and invite the bot.
+
+### Step 7 — Configure the Ticket System
+
+In your Discord server, run:
+
+```
+/setup start
+```
+
+The bot will guide you through:
+1. Panel channel
+2. Support / staff role
+3. Ping role for new tickets
+4. Ticket category
+5. Closed tickets category
+6. Custom panel title and description
+
+### Updating the Bot
+
+Just **Restart** the server. If **Auto Update** is enabled, the latest code is pulled from GitHub automatically before the bot starts.
+
+---
+
+## Option B — VPS / Local Server
+
+### Prerequisites
+
+- Python 3.10 or higher
+- Git
+- A Discord bot token (see below)
+
+### Step 1 — Clone the Repository
+
+```bash
+git clone https://github.com/Shaf2665/Aether_Tickets.git
+cd Aether_Tickets
+```
+
+### Step 2 — Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-This installs all the required Python packages (discord.py and python-dotenv).
+### Step 3 — Create a Discord Bot
 
-### Step 2: Create a Discord Bot
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
+2. Go to the **Bot** tab → **Reset Token** → copy the token.
+3. Enable all three **Privileged Gateway Intents**:
+   - ✅ Presence Intent
+   - ✅ Server Members Intent
+   - ✅ Message Content Intent
+4. Go to **OAuth2 → URL Generator**:
+   - Scopes: `bot` + `applications.commands`
+   - Permissions: `Manage Channels`, `Manage Roles`, `Send Messages`, `View Channels`, `Read Message History`, `Embed Links`, `Manage Messages`
+5. Open the generated URL and invite the bot to your server.
 
-1. **Go to Discord Developer Portal**
-   - Visit [https://discord.com/developers/applications](https://discord.com/developers/applications)
-   - Log in with your Discord account
+### Step 4 — Configure Environment Variables
 
-2. **Create a New Application**
-   - Click the "New Application" button
-   - Give it a name (e.g., "Ticket Bot")
-   - Click "Create"
+Copy the example file and edit it:
 
-3. **Create the Bot**
-   - Go to the "Bot" section in the left sidebar
-   - Click "Add Bot" and confirm
-   - Under "Privileged Gateway Intents", enable:
-     - ✅ **Message Content Intent** (required)
-     - ✅ **Server Members Intent** (optional, but recommended)
+```bash
+cp env.example.txt .env
+```
 
-4. **Copy the Bot Token**
-   - Under the "Token" section, click "Reset Token" or "Copy"
-   - **Important:** Keep this token secret! Don't share it publicly.
-   - Save it somewhere safe - you'll need it in the next step
+Minimum required for **bot only**:
 
-5. **Generate Invite URL**
-   - Go to "OAuth2" > "URL Generator" in the left sidebar
-   - Under "Scopes", select:
-     - ✅ `bot`
-     - ✅ `applications.commands`
-   - Under "Bot Permissions", select:
-     - ✅ **Manage Channels** (required)
-     - ✅ **Send Messages** (required)
-     - ✅ **View Channels** (required)
-     - ✅ **Read Message History** (required)
-     - ✅ **Embed Links** (recommended)
-   - Copy the generated URL at the bottom
-   - Open the URL in your browser and invite the bot to your server
-   - Make sure to give the bot a role that's high enough in your server's role hierarchy
+```env
+DISCORD_BOT_TOKEN=your_bot_token_here
+```
 
-### Step 3: Configure Environment Variables
+Optional — for faster slash command sync during development:
 
-1. **Create a `.env` file**
-   - In the project root folder, create a new file named `.env` (no extension)
-   - Open it in a text editor
+```env
+GUILD_ID=your_server_id_here
+```
 
-2. **Add your bot token**
-   ```env
-   DISCORD_BOT_TOKEN=your_bot_token_here
-   ```
-   Replace `your_bot_token_here` with the token you copied from the Discord Developer Portal
+> For the **web dashboard**, see [FLASK_SETUP.md](FLASK_SETUP.md) for the additional variables needed.
 
-3. **Optional: Add Server ID (for faster command syncing)**
-   ```env
-   DISCORD_BOT_TOKEN=your_bot_token_here
-   GUILD_ID=your_server_id_here
-   ```
-   To get your server ID:
-   - Enable Developer Mode in Discord (User Settings > Advanced > Developer Mode)
-   - Right-click your server name > Copy Server ID
-   - Paste it as the `GUILD_ID` value
+### Step 5 — Run the Bot
 
-> **Note:** Starting from v1.3, you only need the bot token in the `.env` file for a basic run. Panel channel, support role, ping role, and categories are configured through `/setup start`. Optional `SUPPORT_ROLE_ID` in `.env` (v1.4) only applies if your server has **no** support role saved from `/setup`—useful for legacy setups or a global default.
+**Bot only:**
+```bash
+python bot.py
+```
 
-### Step 4: Run the Bot
+**Bot + Web Dashboard together:**
+```bash
+python app.py
+```
 
-1. **Open terminal/command prompt** in the project folder
-2. **Run the bot:**
-   ```bash
-   python bot.py
-   ```
-3. **You should see:**
-   ```
-   [Bot Name] has logged in!
-   Bot ID: [Bot ID]
-   Connected to [number] guild(s)
-   Database initialized
-   ```
-4. **Keep the terminal open** - the bot needs to stay running to work
+You should see output like:
+```
+[BotName] has logged in!
+```
 
-### Step 5: Configure the Ticket Panel (v1.3+)
+Keep the terminal open (or use a process manager like `systemd`, `pm2`, or `screen`).
 
-Now that your bot is running, configure it in your Discord server:
+### Step 6 — Configure the Ticket System
 
-1. **Start the setup**
-   - In your Discord server, type `/setup start`
-   - The bot will guide you through the setup process
+In your Discord server, run `/setup start` and follow the prompts (same as Pterodactyl Step 7 above).
 
-2. **Follow the prompts:**
-   - **Step 1 - Panel Channel:** 
-     - The bot will ask which channel should display the ticket panel
-     - Mention a channel like `#support` or provide the channel ID
-     - Make sure the bot has permission to send messages in that channel
-   
-   - **Step 2 - Support Role (Optional, v1.4):**
-     - Which role should count as **staff**: they can see new tickets and use `/claim` and `/unclaim`
-     - Mention a role or type `none` if only server administrators should use those commands
-   
-   - **Step 3 - Ping Role (Optional):**
-     - Which role should be **pinged** when tickets are created (can be the same or different from the support role)
-     - Mention a role or type `none` to skip
-   
-   - **Step 4 - Ticket Category (Optional):**
-     - The bot will ask which category tickets should be created in
-     - **Important:** The category must already exist in your server
-     - Type the category name (e.g., `Tickets`) or type `none` to skip
-     - Note: Categories cannot be mentioned like channels/roles - just type the name
-   
-   - **Step 5 - Panel Title (Optional):**
-     - Customize the title of your ticket panel
-     - Type a custom title or `none` to use the default
-   
-   - **Step 6 - Panel Description (Optional):**
-     - Customize the description of your ticket panel
-     - Type a custom description or `none` to use the default
+### Keeping the Bot Running (VPS)
 
-3. **Setup Complete!**
-   - The bot will automatically create the ticket panel in the channel you specified
-   - Users can now click the button to create tickets
+Use a process manager so the bot restarts automatically:
 
-**Tip:** You can type `cancel` at any time during setup to abort the process.
+**systemd (recommended for Linux VPS):**
 
-## How to Use
+```ini
+# /etc/systemd/system/aether-tickets.service
+[Unit]
+Description=Aether Tickets Bot
+After=network.target
 
-### For Users: Creating a Ticket
+[Service]
+User=youruser
+WorkingDirectory=/path/to/Aether_Tickets
+ExecStart=/usr/bin/python3 bot.py
+Restart=always
+RestartSec=5
 
-**Method 1: Using the Button (Recommended)**
-1. Go to the channel where the ticket panel is displayed
-2. Click the "Create Ticket" button (🎫)
-3. A private channel will be created for you
-4. Describe your issue or question
-5. Staff will be notified and help you
+[Install]
+WantedBy=multi-user.target
+```
 
-**Method 2: Using Slash Command**
-1. Type `/ticket` anywhere in the server
-2. A private channel will be created for you
-3. Describe your issue or question
+```bash
+sudo systemctl enable aether-tickets
+sudo systemctl start aether-tickets
+```
 
-### For Users: Closing a Ticket
+**Updating (VPS):**
+```bash
+git pull
+pip install -U -r requirements.txt
+sudo systemctl restart aether-tickets
+```
 
-1. Go to your ticket channel
-2. Type `/close` or `/close [reason]`
-   - Example: `/close Issue resolved!`
-3. The channel will be deleted after 5 seconds
-4. Only you (the ticket creator) or admins can close tickets
-
-### For Staff: Managing Tickets
-
-**Claiming a Ticket**
-- Type `/claim` in a ticket channel
-- This marks the ticket as "claimed" so other staff know you're handling it
-- Only staff members (with support role) or admins can claim tickets
-
-**Unclaiming a Ticket**
-- Type `/unclaim` in a ticket channel
-- This makes the ticket available for other staff to claim
-- Only the person who claimed it or admins can unclaim
-
-**Viewing Statistics (Admin Only)**
-- Type `/ticketstats` to see:
-  - Total tickets created
-  - Open tickets
-  - Closed tickets
-  - Claimed vs unclaimed tickets
-  - Statistics for today, this week, and this month
-
-### For Admins: Managing Configuration
-
-**View Current Configuration**
-- Type `/setup view` to see your current ticket system settings
-
-**Reset Configuration**
-- Type `/setup reset` to delete your configuration
-- You'll need to run `/setup start` again to reconfigure
-
-**Refresh Panel**
-- Type `/setup refresh` to recreate the ticket panel
-- Useful if the panel was deleted or needs updating
+---
 
 ## Commands Reference
 
 | Command | Description | Who Can Use |
-|---------|-------------|-------------|
+|---|---|---|
 | `/ticket` | Create a new support ticket | Everyone |
-| `/close [reason]` | Close the current ticket (optional reason) | Ticket owner or Admin |
+| `/close [reason]` | Close the current ticket | Ticket owner or Admin |
 | `/claim` | Claim the current ticket | Staff or Admin |
 | `/unclaim` | Unclaim the current ticket | Claimer or Admin |
 | `/ticketstats` | View ticket statistics | Admin only |
-| `/setup start` | Start interactive setup process | Admin only |
+| `/delete` | Permanently delete a ticket channel | Admin only |
+| `/setup start` | Start interactive setup | Admin only |
 | `/setup view` | View current configuration | Admin only |
 | `/setup reset` | Reset configuration | Admin only |
 | `/setup refresh` | Refresh/recreate ticket panel | Admin only |
+| `/categories list` | List ticket categories | Admin only |
+| `/categories add` | Add a ticket category | Admin only |
+| `/categories remove` | Remove a ticket category | Admin only |
+| `/categories edit` | Edit a ticket category | Admin only |
+
+---
 
 ## Required Bot Permissions
 
-When inviting the bot, make sure it has these permissions:
+| Permission | Why |
+|---|---|
+| Manage Channels | Create and move ticket channels |
+| Manage Roles | Set channel permission overwrites |
+| Send Messages | Send messages and embeds |
+| View Channels | See channels |
+| Read Message History | Read ticket history |
+| Embed Links | Send rich embeds |
+| Manage Messages | Pin messages in ticket channels |
 
-### Essential Permissions
-- **Manage Channels** - Required to create and delete ticket channels
-- **Send Messages** - Required to send messages in channels
-- **View Channels** - Required to view channels
-- **Read Message History** - Required to read messages
+> **Role hierarchy tip:** The bot's role must be **above** any roles it manages in your server's role list.
 
-### Recommended Permissions
-- **Embed Links** - Required for embeds (ticket panels, messages)
-- **Use External Emojis** - Optional, for custom emojis
+---
 
-### Permission Setup Tips
-1. **Bot Role Position:** Make sure the bot's role is higher than any roles it needs to manage (like support roles) in your server's role hierarchy
-2. **Channel Permissions:** Even with server-wide permissions, check that the bot can send messages in the channel where you want the panel
-3. **Category Permissions:** If you set a category for tickets, ensure the bot has permissions in that category
+## Web Dashboard
 
-## Database
+The Flask web dashboard lets admins manage tickets from a browser using Discord OAuth login.
 
-The bot uses SQLite (a file-based database) to store all ticket information. The database file (`tickets.db`) is created automatically in the project folder.
+See **[FLASK_SETUP.md](FLASK_SETUP.md)** for full setup instructions.
 
-### What's Stored
-- Ticket IDs and channel information
-- Who created each ticket
-- When tickets were created and closed
-- Who claimed tickets
-- Close reasons
-- Server configuration (v1.3)
+**Quick summary:**
+- Login with Discord (OAuth2) — no separate credentials
+- View ticket stats, search/filter tickets, claim/close from the web
+- Multi-guild support
+- REST API endpoints at `/api/...`
 
-### Database Files
-- `tickets.db` - Main database file (created automatically)
-- Don't delete this file - it contains all your ticket history!
-
-## Troubleshooting
-
-### Bot doesn't respond to commands
-- **Wait a few minutes** - Commands can take up to 1 hour to sync globally, or a few minutes if you set `GUILD_ID`
-- **Check permissions** - Make sure the bot has the required permissions
-- **Check intents** - Verify "Message Content Intent" is enabled in Discord Developer Portal
-- **Restart the bot** - Sometimes restarting helps commands sync faster
-
-### Can't create tickets
-- **Check bot permissions** - Ensure the bot has "Manage Channels" permission
-- **Check role hierarchy** - The bot's role must be higher than roles it manages
-- **Check category permissions** - If using a category, ensure the bot has permissions there
-
-### Setup command not working
-- **Check admin permissions** - You must be an administrator or server owner
-- **Check bot permissions** - The bot needs permission to send messages in the channel you're setting up
-- **Check channel permissions** - Make sure the bot can send messages in the panel channel
-- **Use `/setup view`** - Check your current configuration
-
-### Commands appear twice
-- **Wait for sync** - This usually happens during command syncing
-- **Restart the bot** - Restarting should fix duplicate commands
-- **Check for updates** - Make sure you're using the latest version
-
-### Bot can't send messages
-- **Check channel permissions** - The bot needs "Send Messages" permission in that channel
-- **Check role hierarchy** - The bot's role might be too low
-- **The bot will try to DM you** - If it can't send in a channel, it will try to DM you instead
-
-### Database errors
-- **Check file permissions** - Make sure the bot has write permissions in the project folder
-- **Check disk space** - Ensure you have enough disk space
-- **Database migration** - The bot automatically updates the database when needed
-
-### Category not found during setup
-- **Create the category first** - Categories must exist before you can use them
-- **Check the name** - Category names are case-sensitive, type it exactly as it appears
-- **Use category ID** - If you know the category ID, you can use that instead
-- **Type `none`** - You can skip categories and create tickets at the root level
+---
 
 ## Project Structure
 
 ```
-.
-├── bot.py                 # Main bot file - starts the bot
-├── config.py              # Configuration management - loads settings
-├── database.py            # SQLite database operations - stores tickets
+Aether_Tickets/
+├── app.py                    # Entrypoint: runs bot + Flask concurrently
+├── bot.py                    # TicketBot class, cog loader, persistent views
+├── config.py                 # Bot config (reads env vars)
+├── database.py               # SQLite database (tickets, guild_config, categories)
+├── requirements.txt          # Python dependencies
+├── startup.sh                # Pterodactyl startup script
+├── egg-aether-tickets.json   # Pterodactyl egg (import this into your panel)
+├── env.example.txt           # Example .env for local/VPS setup
+│
 ├── commands/
-│   ├── __init__.py        # Python package file
-│   ├── ticket.py          # Ticket commands (/ticket, /close, /claim, etc.)
-│   └── setup.py           # Setup commands (/setup start, /setup view, etc.)
+│   ├── ticket.py             # /ticket /close /claim /unclaim /ticketstats /delete
+│   ├── setup.py              # /setup start|view|reset|refresh
+│   └── categories.py         # /categories list|add|remove|edit
+│
 ├── utils/
-│   ├── __init__.py        # Python package file
-│   └── embeds.py          # Embed utilities - creates message embeds
-├── requirements.txt       # Python dependencies list
-├── .env                   # Environment variables (you create this)
-├── tickets.db             # Database file (created automatically)
-└── README.md              # This file
+│   ├── embeds.py             # All embed builders
+│   └── ticket_creation.py    # Shared ticket open/close logic, persistent views
+│
+└── web/
+    ├── __init__.py           # Flask app factory
+    ├── config.py             # Flask config (OAuth, session, SSL)
+    ├── auth.py               # Discord OAuth + login_required decorator
+    └── routes/
+        ├── auth_routes.py    # /auth/login, /auth/callback, /auth/logout
+        ├── dashboard.py      # /dashboard
+        ├── tickets.py        # /tickets list and detail
+        └── api.py            # /api JSON endpoints
 ```
-
-## Version History
-
-### Version 1.5 (Current)
-- ✅ Added **Flask Web UI** with Discord OAuth 2.0 authentication
-- ✅ Admin dashboard with ticket statistics and analytics (Chart.js)
-- ✅ Ticket list with search, filtering, and pagination
-- ✅ Ticket detail pages with claim/close actions from the web
-- ✅ Multi-guild support with automatic data isolation
-- ✅ JSON API endpoints for programmatic access
-- ✅ Responsive UI (Bootstrap 5) for desktop and mobile
-- ✅ Extended `database.py` with guild-based filtering methods
-- ✅ Added `FLASK_SETUP.md` with full setup guide for the web UI
-
-### Version 1.4
-- ✅ Added **Support role** step to `/setup start` (step 2 of 6); staff role is stored in `guild_config` and used for ticket channel access
-- ✅ `/claim` and `/unclaim` now respect the per-server support role from `/setup`; optional `SUPPORT_ROLE_ID` in `.env` remains as a fallback when no guild support role is configured
-- ✅ Documentation updated for the six-step setup flow
-
-### Version 1.3
-- ✅ Added interactive setup command (`/setup start`)
-- ✅ Added per-guild configuration system
-- ✅ Added configuration management commands (`/setup view`, `/setup reset`, `/setup refresh`)
-- ✅ Added role pinging when tickets are created
-- ✅ Added customizable panel titles and descriptions
-- ✅ Added `guild_config` table for storing per-guild settings
-- ✅ Improved user experience with step-by-step setup process
-- ✅ Fixed duplicate command issues
-- ✅ Improved error handling and permission checks
-- ✅ Backward compatible with .env configuration
-
-### Version 1.2
-- ✅ Added ticket claiming system (`/claim`, `/unclaim`)
-- ✅ Added optional reason parameter to `/close` command
-- ✅ Added admin statistics command (`/ticketstats`)
-- ✅ Enhanced embeds to show claim status
-- ✅ Database migration support for new columns
-
-### Version 1.1
-- ✅ Initial release
-- ✅ Basic ticket creation and closing
-- ✅ SQLite database logging
-- ✅ Support role integration
-
-## Getting Help
-
-If you encounter issues:
-
-1. **Check the Troubleshooting section** above
-2. **Verify all permissions** are set correctly
-3. **Check the bot's console output** for error messages
-4. **Make sure you're using the latest version**
-
-## License
-
-This project is open source and available for modification under the MIT License.
 
 ---
 
-**Need help?** Make sure to check the Troubleshooting section first, and verify that all setup steps were completed correctly!
+## Troubleshooting
+
+### Slash commands don't appear
+- Wait up to 1 hour for global sync, or set `GUILD_ID` for instant sync.
+- Restart the bot.
+
+### Bot can't create channels / manage roles
+- Check the bot's permissions and role hierarchy position.
+
+### `/setup` not working
+- You must have the **Administrator** permission in the server.
+
+### Web dashboard OAuth fails
+- Ensure `DISCORD_REDIRECT_URI` in your `.env` exactly matches the redirect URI added in the Discord Developer Portal.
+- On HTTP (no SSL), make sure `FORCE_HTTPS` and `BEHIND_PROXY` are not set to `true`.
+
+### Pterodactyl — server stuck on "Installing"
+- Check the installation log in the panel for errors.
+- Verify `GIT_REPO` and `GIT_BRANCH` are correct in the Startup tab.
+
+### Pterodactyl — bot won't start
+- Check the console for errors.
+- Ensure `DISCORD_BOT_TOKEN` is set correctly in the Startup tab.
+
+---
+
+## License
+
+MIT License — open source, free to modify and use.

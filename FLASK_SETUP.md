@@ -1,131 +1,131 @@
-# Aether Tickets Flask Web UI Setup Guide
+# Aether Tickets — Web Dashboard Setup Guide
 
-This guide will help you set up and run the Flask Web UI for the Aether Tickets Discord bot.
+This guide covers setting up the Flask web dashboard for the Aether Tickets bot on a **VPS or local server**.
+
+> **Pterodactyl users:** The current Pterodactyl egg runs the **bot only**. To add the web dashboard on Pterodactyl, set `LAUNCH_MODE=both` in the Startup tab and add the OAuth variables listed in [Step 3](#step-3--configure-environment-variables) as additional Startup Variables.
 
 ## Overview
 
-The Flask Web UI allows admins to:
-- 📊 **View Dashboard** with ticket statistics and analytics
-- 📋 **Manage Tickets** - view, filter, search, and update tickets
-- 🔐 **Authenticate** via Discord OAuth
-- 🎯 **Handle Multiple Guilds** - manage tickets across different Discord servers
-- ⚡ **Real-time Updates** - claim, close, and manage tickets from the web interface
+The web dashboard allows admins to:
+- 📊 **View Dashboard** — ticket statistics and analytics charts
+- 📋 **Manage Tickets** — view, filter, search, claim, and close tickets from a browser
+- 🔐 **Discord OAuth Login** — no separate credentials; sign in with your Discord account
+- 🎯 **Multi-Guild Support** — switch between servers you admin
+- ⚡ **REST API** — JSON endpoints at `/api/...` for programmatic access
 
 ## Prerequisites
 
-Before setting up the Flask Web UI, ensure you have:
-- Python 3.8 or higher
-- The Discord bot already configured and running
-- A Discord application with OAuth2 enabled (see below)
-- All required packages from `requirements.txt`
+- Python 3.10 or higher
+- The Discord bot already set up and running (see [README.md](README.md))
+- A Discord application (you can reuse the same one as the bot)
 
-## Step 1: Create Discord OAuth Application
+## Step 1: Enable OAuth2 on Your Discord Application
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application or use your existing ticket bot application
-3. Go to "OAuth2" → "General" tab
-4. **Copy your Client ID** and **Client Secret** (you'll need these)
-5. Go to "OAuth2" → "Redirects" tab
-6. Add this redirect URI:
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications) and open your bot's application.
+2. Go to **OAuth2 → General**.
+3. Copy your **Client ID** and **Client Secret** — you will need both.
+4. Under **Redirects**, click **Add Redirect** and enter:
    ```
-   http://localhost:5000/auth/callback
+   http://<your-server-ip-or-domain>:<port>/auth/callback
    ```
-   (Change `localhost:5000` if running on a different host/port)
-7. Save your changes
+   Examples:
+   ```
+   http://localhost:5000/auth/callback          # local development
+   http://203.0.113.10:5000/auth/callback       # VPS with IP
+   https://tickets.yourdomain.com/auth/callback # VPS with domain + SSL
+   ```
+5. Click **Save Changes**.
 
 ## Step 2: Install Dependencies
 
+If you haven't already, install all dependencies:
+
 ```bash
-# Install Flask and related packages
 pip install -r requirements.txt
 ```
 
-If you already have the bot requirements installed, this will add:
-- Flask==3.0.0
-- requests>=2.31.0
-- PyJWT>=2.8.0
-- flask-cors>=4.0.0
-- pytz>=2023.3
+This installs everything needed for both the bot and the web dashboard (Flask, requests, PyJWT, flask-cors, pytz).
 
 ## Step 3: Configure Environment Variables
 
-1. **Copy the template:**
-   ```bash
-   cp env.example.txt .env
-   ```
+Copy the example file and edit it:
 
-2. **Edit `.env` and fill in:**
+```bash
+cp env.example.txt .env
+```
 
-   **Discord Bot (existing):**
-   ```
-   DISCORD_BOT_TOKEN=your_bot_token_here
-   GUILD_ID=
-   TICKET_CATEGORY_ID=
-   SUPPORT_ROLE_ID=
-   TICKET_CHANNEL_ID=
-   ```
+Add or update these values in your `.env`:
 
-   **Flask Web UI (new):**
-   ```
-   # OAuth Client ID from Discord Developer Portal
-   DISCORD_CLIENT_ID=your_client_id_here
+```env
+# ── Bot (required) ────────────────────────────────────────────
+DISCORD_BOT_TOKEN=your_bot_token_here
 
-   # OAuth Client Secret from Discord Developer Portal
-   DISCORD_CLIENT_SECRET=your_client_secret_here
+# ── Web Dashboard (required for web UI) ───────────────────────
 
-   # Generate a random secret key
-   # Run this: python -c "import secrets; print(secrets.token_hex(32))"
-   FLASK_SECRET_KEY=your_generated_key_here
+# Client ID from Discord Developer Portal → OAuth2 → General
+DISCORD_CLIENT_ID=your_client_id_here
 
-   # Environment
-   FLASK_ENV=development
+# Client Secret from Discord Developer Portal → OAuth2 → General
+DISCORD_CLIENT_SECRET=your_client_secret_here
 
-   # Redirect URI (must match Discord application settings)
-   DISCORD_REDIRECT_URI=http://localhost:5000/auth/callback
+# Random secret key for Flask sessions
+# Generate one: python -c "import secrets; print(secrets.token_hex(32))"
+FLASK_SECRET_KEY=your_generated_key_here
 
-   # Database path
-   DATABASE_PATH=tickets.db
-   ```
+# Must exactly match the redirect URI you added in the Developer Portal
+DISCORD_REDIRECT_URI=http://<your-ip-or-domain>:<port>/auth/callback
 
-## Step 4: Generate Flask Secret Key
+# ── Optional ───────────────────────────────────────────────────
+FLASK_ENV=production          # Use 'development' for debug mode
+PORT=5000                     # Port the web UI listens on
+DATABASE_PATH=tickets.db      # Path to the SQLite database
 
-Generate a secure random key for Flask sessions:
+# ── SSL / Reverse Proxy (only if applicable) ───────────────────
+# Set BEHIND_PROXY=true if Nginx/Caddy/Cloudflare terminates SSL in front of Flask
+BEHIND_PROXY=false
+# Set FORCE_HTTPS=true only if running Flask directly with SSL (no proxy)
+FORCE_HTTPS=false
+```
+
+## Step 4: Generate a Flask Secret Key
 
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Copy the output and paste it as `FLASK_SECRET_KEY` in your `.env` file.
+Copy the output and set it as `FLASK_SECRET_KEY` in your `.env`. This key signs session cookies — keep it secret and don't change it while users are logged in.
 
 ## Step 5: Run the Application
 
-### Option A: Run Both Bot and Flask Together
+### Option A — Bot + Web Dashboard together (recommended)
 
 ```bash
 python app.py
 ```
 
-This will start:
-- 🤖 **Discord Bot** - listening for Discord events
-- 🌐 **Flask Web UI** - available at http://localhost:5000
+This starts both the Discord bot and the Flask web UI in the same process.
 
-### Option B: Run Flask Only (Development)
+### Option B — Web Dashboard only
 
 ```bash
-cd web
-flask run
+LAUNCH_MODE=web python app.py
 ```
 
-This will start Flask at http://localhost:5000 (bot must be running separately)
+Use this if the bot is already running separately.
 
-## Step 6: Access the Web UI
+The web dashboard will be available at:
+```
+http://<your-ip-or-domain>:<PORT>
+```
 
-1. Open your browser: **http://localhost:5000**
-2. Click "Login with Discord"
-3. Authorize the application
-4. You'll be redirected to the dashboard if you're an admin of any guild
+## Step 6: Access the Web Dashboard
 
-**Note:** You must be the owner or have admin permissions in the Discord guild to access the web UI.
+1. Open your browser and go to `http://<your-ip-or-domain>:<PORT>`.
+2. Click **Login with Discord**.
+3. Authorize the application.
+4. You will be redirected to the dashboard.
+
+> **Access requirement:** You must be the **owner** or have the **Administrator** permission in at least one Discord server where the bot is present.
 
 ## Features
 
@@ -190,27 +190,29 @@ web/
 
 ## Troubleshooting
 
-### "Discord OAuth callback failed"
-- Check that `DISCORD_REDIRECT_URI` in `.env` matches your Discord app settings
-- Ensure it's exactly: `http://localhost:5000/auth/callback`
+### "Discord OAuth callback failed" / redirect_uri_mismatch
+- The `DISCORD_REDIRECT_URI` in your `.env` must **exactly** match the redirect URI saved in the Discord Developer Portal (including `http`/`https`, port, and path).
+- After changing it in the portal, save and wait a few seconds.
 
 ### "You don't have admin access to any guilds"
-- You must be the **guild owner** or have **admin permissions** in the Discord server
-- Your user must have the admin role configured in the bot
+- You must be the **owner** or have the **Administrator** permission in a Discord server where the bot is present.
+- Make sure the bot has been invited to that server.
 
-### Port 5000 already in use
-- Change the port in `app.py`:
-  ```python
-  app.run(host='0.0.0.0', port=8000)  # Use 8000 instead
-  ```
-- Update `DISCORD_REDIRECT_URI` in `.env` accordingly
+### Session lost / login loop on HTTP
+- Do **not** set `FORCE_HTTPS=true` or `BEHIND_PROXY=true` when running plain HTTP — this causes the session cookie to be rejected.
+- Leave both as `false` (the default) for HTTP setups.
 
-### "No module named 'discord'"
+### Port already in use
+- Change the port by setting `PORT=8000` (or any free port) in your `.env`.
+- Update `DISCORD_REDIRECT_URI` to use the new port.
+- Update the redirect URI in the Discord Developer Portal.
+
+### "No module named 'flask'" or similar
 - Run: `pip install -r requirements.txt`
 
-### Database not found
-- Ensure `DATABASE_PATH` in `.env` is correct
-- The bot must run at least once to create `tickets.db`
+### Database not found / empty dashboard
+- Ensure `DATABASE_PATH` in `.env` points to the correct `tickets.db` file.
+- The bot must have run at least once to create the database.
 
 ## API Endpoints (Optional)
 
@@ -227,48 +229,69 @@ GET  /api/stats                      # Get guild statistics
 
 All endpoints require authentication (Discord OAuth login).
 
-## Production Deployment
+## Production Deployment (VPS)
 
-For production use:
+### Running with systemd
 
-1. **Set environment:**
-   ```
-   FLASK_ENV=production
+Create a service file so the app restarts automatically:
+
+```ini
+# /etc/systemd/system/aether-tickets.service
+[Unit]
+Description=Aether Tickets Bot + Web UI
+After=network.target
+
+[Service]
+User=youruser
+WorkingDirectory=/path/to/Aether_Tickets
+EnvironmentFile=/path/to/Aether_Tickets/.env
+ExecStart=/usr/bin/python3 app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable aether-tickets
+sudo systemctl start aether-tickets
+```
+
+### Running Behind a Reverse Proxy (Nginx + SSL)
+
+If you use Nginx (or Caddy/Cloudflare) to terminate SSL in front of Flask:
+
+1. Set in `.env`:
+   ```env
+   BEHIND_PROXY=true
+   DISCORD_REDIRECT_URI=https://tickets.yourdomain.com/auth/callback
    ```
 
-2. **Use a production WSGI server** instead of Flask's built-in server:
-   ```bash
-   pip install gunicorn
-   gunicorn -w 4 -b 0.0.0.0:5000 wsgi:app
-   ```
+2. Add the redirect URI to the Discord Developer Portal.
 
-3. **Generate a strong `FLASK_SECRET_KEY`:**
-   ```bash
-   python -c "import secrets; print(secrets.token_hex(32))"
-   ```
+3. Example minimal Nginx config:
+   ```nginx
+   server {
+       listen 443 ssl;
+       server_name tickets.yourdomain.com;
 
-4. **Use HTTPS** and update `DISCORD_REDIRECT_URI` accordingly:
-   ```
-   DISCORD_REDIRECT_URI=https://yourdomain.com/auth/callback
-   ```
+       ssl_certificate     /etc/letsencrypt/live/tickets.yourdomain.com/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/tickets.yourdomain.com/privkey.pem;
 
-5. **Run behind a reverse proxy** (nginx/Apache) for security
+       location / {
+           proxy_pass         http://127.0.0.1:5000;
+           proxy_set_header   Host $host;
+           proxy_set_header   X-Real-IP $remote_addr;
+           proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header   X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
 
 ## Need Help?
 
-- Check `.env` file is correctly configured
-- Ensure the Discord bot is running
-- Check console logs for error messages
-- Verify Discord OAuth application settings
-
-## Future Enhancements
-
-Potential features for future versions:
-- Real-time updates via WebSocket
-- Bulk ticket operations
-- Custom ticket fields
-- Email notifications
-- Admin audit log
-- Export/reporting features
-- Dark mode theme
-- Mobile app (PWA)
+1. Re-read the error message in your terminal — it usually tells you exactly what's wrong.
+2. Double-check all values in `.env` against the Discord Developer Portal.
+3. Make sure the bot is running and has been invited to your server.
+4. Check the [README.md](README.md) for general bot setup steps.
