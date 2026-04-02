@@ -7,7 +7,7 @@
   "exported_at": "2026-04-01T00:00:00+00:00",
   "name": "Aether Tickets",
   "author": "aether@example.com",
-  "description": "Aether Tickets — Discord ticket bot. Auto-clones from GitHub on install, auto-pulls updates on every restart. No file uploads needed.",
+  "description": "Aether Tickets v1.7 — Discord ticket bot with Web Dashboard. Features: ticket creation, claiming, auto-close, chat sync (Discord ↔ Web UI), per-server categories, and more. Auto-clones from GitHub on install, auto-pulls updates on every restart. No file uploads needed.",
   "features": null,
   "docker_images": {
     "Python 3.11 (Recommended)": "ghcr.io/pterodactyl/yolks:python_3.11",
@@ -32,7 +32,7 @@
   "variables": [
     {
       "name": "📖 QUICK SETUP GUIDE — READ FIRST",
-      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below, then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | That's it! The bot is ready.",
+      "description": "STEP 1 — Create your Discord bot: Go to https://discord.com/developers/applications → New Application → Bot tab → Reset Token → copy the token and paste it into 'Discord Bot Token' below. Enable all 3 Privileged Gateway Intents (Presence, Server Members, Message Content). | STEP 2 — Invite the bot to your server: In the Developer Portal → OAuth2 → URL Generator. Tick scopes: bot + applications.commands. Tick permissions: Manage Channels, Manage Roles, Read Messages, Send Messages, Embed Links, Read Message History, Manage Messages. Open the generated URL and invite the bot. | STEP 3 — Fill in 'Discord Bot Token' below, then click SAVE and START the server. | STEP 4 — In your Discord server, run the slash command: /setup start — and follow the prompts to configure the ticket panel. | OPTIONAL — Enable auto-close: run /autoclose set <hours> to automatically close inactive tickets (e.g. /autoclose set 24). Use /autoclose status to check the current setting. | That's it! The bot is ready.",
       "env_variable": "_GUIDE_MAIN",
       "default_value": "",
       "user_viewable": true,

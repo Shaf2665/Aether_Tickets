@@ -2,7 +2,7 @@
 
 A Discord ticket bot built with Python and discord.py, with a Flask web dashboard for admins. Users create private support channels; staff manage them from Discord or a browser.
 
-**Current Version: 1.6**
+**Current Version: 1.7**
 
 ---
 
@@ -19,7 +19,7 @@ A Discord ticket bot built with Python and discord.py, with a Flask web dashboar
 | Web Dashboard | Flask UI with Discord OAuth — view, search, claim, close tickets |
 | Ticket Chat Sync | Messages sent in Discord appear in the Web UI; messages sent from the Web UI are forwarded to Discord in real-time |
 | Web UI → Discord Sync | Claim, unclaim, and close actions in the Web UI are reflected in the Discord channel within seconds |
-| Ticket Auto-Close | Inactive tickets are automatically closed after a configurable number of hours (set in the Web UI dashboard) |
+| Ticket Auto-Close | Inactive tickets are automatically closed after a configurable number of hours — set via `/autoclose set <hours>` in Discord or the Web UI dashboard (both are in sync) |
 | Discord Delete Sync | Deleting a ticket channel in Discord marks it as deleted in the Web UI |
 | Username Display | Ticket lists show Discord display names instead of raw user IDs |
 | Multi-Guild | Each server has isolated config and ticket data |
@@ -245,6 +245,9 @@ sudo systemctl restart aether-tickets
 | `/categories add` | Add a ticket category | Admin only |
 | `/categories remove` | Remove a ticket category | Admin only |
 | `/categories edit` | Edit a ticket category | Admin only |
+| `/autoclose set <hours>` | Enable auto-close after N hours of inactivity | Admin only |
+| `/autoclose disable` | Disable automatic ticket closing | Admin only |
+| `/autoclose status` | Show current auto-close setting | Admin only |
 
 ---
 

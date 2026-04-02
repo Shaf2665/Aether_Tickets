@@ -318,6 +318,88 @@ def create_setup_embed(step: int, question: str) -> discord.Embed:
     return embed
 
 
+def create_autoclose_embed(hours: int, actor: discord.Member) -> discord.Embed:
+    """Embed confirming auto-close has been enabled for a guild.
+
+    Args:
+        hours: Inactivity threshold in hours
+        actor: The admin who set it
+
+    Returns:
+        Discord embed object
+    """
+    embed = discord.Embed(
+        title="⏱️ Auto-Close Enabled",
+        description=(
+            f"Tickets with no activity for **{hours} hour{'s' if hours != 1 else ''}** "
+            f"will be automatically closed."
+        ),
+        color=discord.Color.green(),
+        timestamp=datetime.utcnow(),
+    )
+    embed.add_field(name="Set by", value=actor.mention, inline=True)
+    embed.add_field(name="Threshold", value=f"{hours}h of inactivity", inline=True)
+    embed.set_footer(text="Ticket System • Auto-Close")
+    return embed
+
+
+def create_autoclose_disabled_embed(actor: discord.Member) -> discord.Embed:
+    """Embed confirming auto-close has been disabled for a guild.
+
+    Args:
+        actor: The admin who disabled it
+
+    Returns:
+        Discord embed object
+    """
+    embed = discord.Embed(
+        title="⏱️ Auto-Close Disabled",
+        description="Tickets will **no longer** be automatically closed due to inactivity.",
+        color=discord.Color.orange(),
+        timestamp=datetime.utcnow(),
+    )
+    embed.add_field(name="Disabled by", value=actor.mention, inline=True)
+    embed.set_footer(text="Ticket System • Auto-Close")
+    return embed
+
+
+def create_autoclose_status_embed(hours: int | None, guild: discord.Guild) -> discord.Embed:
+    """Embed showing the current auto-close status for a guild.
+
+    Args:
+        hours: Current threshold in hours, or None if disabled
+        guild: The Discord guild
+
+    Returns:
+        Discord embed object
+    """
+    if hours:
+        status_text = f"✅ **Enabled** — closes after **{hours}h** of inactivity"
+        color = discord.Color.green()
+    else:
+        status_text = "❌ **Disabled** — tickets are never auto-closed"
+        color = discord.Color.red()
+
+    embed = discord.Embed(
+        title="⏱️ Auto-Close Status",
+        description=status_text,
+        color=color,
+        timestamp=datetime.utcnow(),
+    )
+    embed.add_field(name="Server", value=guild.name, inline=True)
+    embed.add_field(
+        name="How to change",
+        value=(
+            "`/autoclose set <hours>` — enable with a threshold\n"
+            "`/autoclose disable` — turn off auto-close\n"
+            "Or use the **Web Dashboard** → Dashboard page"
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="Ticket System • Auto-Close")
+    return embed
+
+
 def create_config_view_embed(config: dict, guild: discord.Guild) -> discord.Embed:
     """Create an embed showing current configuration.
     
@@ -404,7 +486,18 @@ def create_config_view_embed(config: dict, guild: discord.Guild) -> discord.Embe
             value=panel_description[:1024] if len(panel_description) > 1024 else panel_description,
             inline=False
         )
-    
+
+    # Auto-Close setting
+    autoclose_hours = config.get('autoclose_hours')
+    if autoclose_hours:
+        embed.add_field(
+            name="⏱️ Auto-Close",
+            value=f"Enabled — closes after **{autoclose_hours}h** of inactivity",
+            inline=False,
+        )
+    else:
+        embed.add_field(name="⏱️ Auto-Close", value="Disabled", inline=False)
+
     embed.set_footer(text="Ticket System")
     return embed
 

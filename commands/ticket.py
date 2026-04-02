@@ -10,7 +10,10 @@ from utils.embeds import (
     create_not_ticket_error_embed,
     create_claim_embed,
     create_unclaim_embed,
-    create_stats_embed
+    create_stats_embed,
+    create_autoclose_embed,
+    create_autoclose_disabled_embed,
+    create_autoclose_status_embed,
 )
 from config import Config
 from utils.ticket_creation import begin_ticket_creation, TicketDeleteView, _execute_close
@@ -300,7 +303,111 @@ class TicketCommands(commands.Cog):
             )
 
 
+class AutoCloseCommands(commands.Cog):
+    """Commands for managing the ticket auto-close feature."""
+
+    # Slash command group: /autoclose set | disable | status
+    autoclose = app_commands.Group(
+        name="autoclose",
+        description="Manage automatic ticket closing (admin only)",
+    )
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.db = TicketDatabase()
+
+    # ── /autoclose set <hours> ────────────────────────────────────────────────
+
+    @autoclose.command(name="set", description="Enable auto-close after N hours of inactivity")
+    @app_commands.describe(hours="Close inactive tickets after this many hours (1–720)")
+    async def autoclose_set(self, interaction: discord.Interaction, hours: int):
+        """Enable auto-close for this server with the given inactivity threshold."""
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                embed=create_permission_error_embed(), ephemeral=True
+            )
+            return
+
+        if hours < 1 or hours > 720:
+            await interaction.response.send_message(
+                embed=create_error_embed(
+                    "Hours must be between **1** and **720** (30 days)."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Ensure guild config exists before writing
+        config = self.db.get_guild_config(str(interaction.guild.id))
+        if not config:
+            await interaction.response.send_message(
+                embed=create_error_embed(
+                    "No configuration found for this server.\n"
+                    "Run `/setup start` first to configure the ticket system."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        ok = self.db.set_autoclose_hours(str(interaction.guild.id), hours)
+        if not ok:
+            await interaction.response.send_message(
+                embed=create_error_embed("Failed to save setting. Please try again."),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.send_message(
+            embed=create_autoclose_embed(hours, interaction.user)
+        )
+
+    # ── /autoclose disable ────────────────────────────────────────────────────
+
+    @autoclose.command(name="disable", description="Disable automatic ticket closing")
+    async def autoclose_disable(self, interaction: discord.Interaction):
+        """Disable auto-close for this server."""
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                embed=create_permission_error_embed(), ephemeral=True
+            )
+            return
+
+        config = self.db.get_guild_config(str(interaction.guild.id))
+        if not config:
+            await interaction.response.send_message(
+                embed=create_error_embed(
+                    "No configuration found for this server.\n"
+                    "Run `/setup start` first to configure the ticket system."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        self.db.set_autoclose_hours(str(interaction.guild.id), None)
+        await interaction.response.send_message(
+            embed=create_autoclose_disabled_embed(interaction.user)
+        )
+
+    # ── /autoclose status ─────────────────────────────────────────────────────
+
+    @autoclose.command(name="status", description="Show the current auto-close setting")
+    async def autoclose_status(self, interaction: discord.Interaction):
+        """Show the current auto-close configuration for this server."""
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                embed=create_permission_error_embed(), ephemeral=True
+            )
+            return
+
+        hours = self.db.get_autoclose_hours(str(interaction.guild.id))
+        await interaction.response.send_message(
+            embed=create_autoclose_status_embed(hours, interaction.guild),
+            ephemeral=True,
+        )
+
+
 async def setup(bot: commands.Bot):
     """Setup function for the cog."""
     await bot.add_cog(TicketCommands(bot))
+    await bot.add_cog(AutoCloseCommands(bot))
 
