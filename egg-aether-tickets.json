@@ -158,7 +158,7 @@
       "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|boolean",
-      "field_type": "text"
+      "field_type": "boolean"
     },
     {
       "name": "━━━━━━━━━━ 🔧 ADVANCED (do not change unless you know what you're doing) ━━━━━━━━━━",

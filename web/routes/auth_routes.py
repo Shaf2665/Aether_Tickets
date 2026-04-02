@@ -48,7 +48,7 @@ def callback():
     guilds = DiscordOAuth.get_user_guilds(access_token)
 
     # Filter to only guilds where user is owner/admin
-    admin_guilds = DiscordOAuth.filter_admin_guilds(guilds, user_info.get("id"))
+    admin_guilds = DiscordOAuth.filter_admin_guilds(guilds)
 
     if not admin_guilds:
         return {"error": "You don't have admin access to any guilds"}, 403

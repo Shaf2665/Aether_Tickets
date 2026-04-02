@@ -3,6 +3,7 @@
 import requests
 import jwt
 from functools import wraps
+from urllib.parse import urlencode
 from flask import session, current_app, redirect, url_for, request
 
 
@@ -20,8 +21,7 @@ class DiscordOAuth:
             "state": state,
         }
         base_url = "https://discord.com/api/oauth2/authorize"
-        param_str = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{base_url}?{param_str}"
+        return f"{base_url}?{urlencode(params)}"
 
     @staticmethod
     def exchange_code_for_token(code):
@@ -75,7 +75,7 @@ class DiscordOAuth:
         return response.json()
 
     @staticmethod
-    def is_guild_admin(guild, user_id):
+    def is_guild_admin(guild):
         """Check if user is admin/owner of a guild based on Discord API response.
 
         The /users/@me/guilds endpoint returns:
@@ -96,9 +96,9 @@ class DiscordOAuth:
         return False
 
     @staticmethod
-    def filter_admin_guilds(guilds, user_id):
+    def filter_admin_guilds(guilds):
         """Filter to only guilds where user is owner or has Administrator permission."""
-        return [g for g in guilds if DiscordOAuth.is_guild_admin(g, user_id)]
+        return [g for g in guilds if DiscordOAuth.is_guild_admin(g)]
 
 
 def login_required(f):

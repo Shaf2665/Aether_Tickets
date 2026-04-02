@@ -26,10 +26,6 @@ def create_app(config=None):
     if app.config.get("BEHIND_PROXY"):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-    # Set preferred URL scheme so url_for() uses the right scheme even without a request context
-    if app.config.get("PREFERRED_URL_SCHEME"):
-        app.config["PREFERRED_URL_SCHEME"] = app.config["PREFERRED_URL_SCHEME"]
-
     # Initialize CORS
     CORS(app)
 

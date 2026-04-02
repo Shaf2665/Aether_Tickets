@@ -13,7 +13,7 @@ _BEHIND_PROXY = os.getenv("BEHIND_PROXY", "false").lower() in ("true", "1", "yes
 
 # Detect whether the public-facing URL is HTTPS.
 # This is true when BEHIND_PROXY=true (proxy handles SSL) OR when FORCE_HTTPS=true.
-_USE_HTTPS = _BEHIND_PROXY or os.getenv("FORCE_HTTPS", "false").lower() in ("true", "1", "yes")
+_USE_HTTPS = _BEHIND_PROXY
 
 
 class Config:
