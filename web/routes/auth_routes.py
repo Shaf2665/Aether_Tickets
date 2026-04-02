@@ -7,6 +7,14 @@ from web.auth import DiscordOAuth, login_required
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
+@bp.route("/select-guild")
+@login_required
+def select_guild_page():
+    """Show guild selection page when no guild is currently selected."""
+    guilds = session.get("accessible_guilds", [])
+    return render_template("select_guild.html", guilds=guilds)
+
+
 @bp.route("/login")
 def login():
     """Initiate Discord OAuth login flow."""
@@ -54,9 +62,11 @@ def callback():
         return {"error": "You don't have admin access to any guilds"}, 403
 
     # Store in session
+    # global_name is the display name on modern Discord accounts; fall back to username
+    display_name = user_info.get("global_name") or user_info.get("username")
     session.permanent = True
     session["user_id"] = user_info.get("id")
-    session["username"] = user_info.get("username")
+    session["username"] = display_name
     session["discord_avatar"] = user_info.get("avatar")
     session["discord_token"] = access_token
     session["accessible_guilds"] = [
@@ -96,9 +106,3 @@ def logout():
     return redirect("/")
 
 
-@bp.route("/")
-def index():
-    """Homepage - redirect to dashboard if logged in, else to login."""
-    if "user_id" in session:
-        return redirect(url_for("dashboard.view"))
-    return redirect(url_for("auth.login"))

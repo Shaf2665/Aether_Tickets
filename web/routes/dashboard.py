@@ -1,10 +1,16 @@
 """Dashboard route for Aether Tickets Web UI."""
 
-from flask import Blueprint, render_template, session
+from flask import Blueprint, render_template, session, redirect, url_for
 from database import TicketDatabase
 from web.auth import guild_required
 
 bp = Blueprint("dashboard", __name__, url_prefix="/dashboard")
+
+
+@bp.route("")
+def dashboard_redirect():
+    """Redirect /dashboard (no trailing slash) to /dashboard/."""
+    return redirect(url_for("dashboard.view"))
 
 
 @bp.route("/")

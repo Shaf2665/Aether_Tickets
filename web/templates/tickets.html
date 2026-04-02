@@ -130,28 +130,33 @@
 
         <!-- Pagination -->
         {% if total_pages > 1 %}
+        {# Build a base query string that preserves status and search filters #}
+        {% set qs_parts = [] %}
+        {% if status_filter and status_filter != 'all' %}{% set _ = qs_parts.append('status=' + status_filter) %}{% endif %}
+        {% if search %}{% set _ = qs_parts.append('search=' + search | urlencode) %}{% endif %}
+        {% set qs_base = (qs_parts | join('&') + '&') if qs_parts else '' %}
         <nav aria-label="Page navigation" class="d-flex justify-content-center p-3">
             <ul class="pagination">
                 <li class="page-item {% if page == 1 %}disabled{% endif %}">
-                    <a class="page-link" href="?{{ 'status=' + status_filter + '&' if status_filter != 'all' else '' }}page=1">First</a>
+                    <a class="page-link" href="?{{ qs_base }}page=1">First</a>
                 </li>
                 <li class="page-item {% if page == 1 %}disabled{% endif %}">
-                    <a class="page-link" href="?{{ 'status=' + status_filter + '&' if status_filter != 'all' else '' }}page={{ page - 1 }}">Previous</a>
+                    <a class="page-link" href="?{{ qs_base }}page={{ page - 1 }}">Previous</a>
                 </li>
 
                 {% for p in range(1, total_pages + 1) %}
                     {% if p >= page - 2 and p <= page + 2 %}
                     <li class="page-item {% if p == page %}active{% endif %}">
-                        <a class="page-link" href="?{{ 'status=' + status_filter + '&' if status_filter != 'all' else '' }}page={{ p }}">{{ p }}</a>
+                        <a class="page-link" href="?{{ qs_base }}page={{ p }}">{{ p }}</a>
                     </li>
                     {% endif %}
                 {% endfor %}
 
                 <li class="page-item {% if page == total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="?{{ 'status=' + status_filter + '&' if status_filter != 'all' else '' }}page={{ page + 1 }}">Next</a>
+                    <a class="page-link" href="?{{ qs_base }}page={{ page + 1 }}">Next</a>
                 </li>
                 <li class="page-item {% if page == total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="?{{ 'status=' + status_filter + '&' if status_filter != 'all' else '' }}page={{ total_pages }}">Last</a>
+                    <a class="page-link" href="?{{ qs_base }}page={{ total_pages }}">Last</a>
                 </li>
             </ul>
         </nav>

@@ -1,7 +1,6 @@
 """Discord OAuth authentication for Aether Tickets Web UI."""
 
 import requests
-import jwt
 from functools import wraps
 from urllib.parse import urlencode
 from flask import session, current_app, redirect, url_for, request
@@ -118,6 +117,6 @@ def guild_required(f):
         if "user_id" not in session:
             return redirect(url_for("auth.login"))
         if "current_guild_id" not in session:
-            return redirect(url_for("auth.select_guild"))
+            return redirect(url_for("auth.select_guild_page"))
         return f(*args, **kwargs)
     return decorated_function

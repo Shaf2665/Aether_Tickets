@@ -54,12 +54,20 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ session.username }}
+                        <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#"
+                           id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            {% if session.discord_avatar %}
+                            <img src="https://cdn.discordapp.com/avatars/{{ session.user_id }}/{{ session.discord_avatar }}.png"
+                                 class="rounded-circle" width="24" height="24" alt="avatar">
+                            {% else %}
+                            <i class="bi bi-person-circle"></i>
+                            {% endif %}
+                            {{ session.username }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a></li>
                         </ul>
                     </li>
                 </ul>
@@ -85,7 +93,7 @@
 
     <footer class="bg-light text-center py-3 mt-5">
         <div class="container">
-            <p class="text-muted mb-0">&copy; 2024 Aether Tickets | Discord Bot Admin Dashboard</p>
+            <p class="text-muted mb-0">&copy; 2026 Aether Tickets | Discord Bot Admin Dashboard</p>
         </div>
     </footer>
 

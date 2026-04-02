@@ -37,13 +37,27 @@ def create_app(config=None):
     app.register_blueprint(tickets.bp)
     app.register_blueprint(api.bp)
 
-    # Error handlers
+    # Root redirect
+    @app.route("/")
+    def index():
+        from flask import session, redirect, url_for
+        if "user_id" in session:
+            return redirect(url_for("dashboard.view"))
+        return redirect(url_for("auth.login"))
+
+    # Error handlers — return HTML so the user sees a proper page
     @app.errorhandler(404)
     def not_found(error):
-        return {"error": "Not found"}, 404
+        from flask import render_template, request
+        if request.path.startswith("/api/"):
+            return {"error": "Not found"}, 404
+        return render_template("error.html", code=404, message="Page not found"), 404
 
     @app.errorhandler(500)
     def server_error(error):
-        return {"error": "Internal server error"}, 500
+        from flask import render_template, request
+        if request.path.startswith("/api/"):
+            return {"error": "Internal server error"}, 500
+        return render_template("error.html", code=500, message="Internal server error"), 500
 
     return app

@@ -81,7 +81,13 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    {% if stats.categories %}
                     <canvas id="categoryChart"></canvas>
+                    {% else %}
+                    <p class="text-muted text-center py-4 mb-0">
+                        <i class="bi bi-inbox"></i> No ticket categories yet
+                    </p>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -198,8 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const categoryLabels = Object.keys(categoryData);
     const categoryCounts = Object.values(categoryData);
 
-    if (categoryLabels.length > 0) {
-        const ctx = document.getElementById('categoryChart');
+    const ctx = document.getElementById('categoryChart');
+    if (categoryLabels.length > 0 && ctx) {
         new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -229,5 +235,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
 </script>
 {% endblock %}
