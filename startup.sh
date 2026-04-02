@@ -63,7 +63,7 @@ echo "[pip] Dependencies ready."
 # ---------------------------------------------------------------------------
 # 3. Print setup guide on first run only
 # ---------------------------------------------------------------------------
-LAUNCH_MODE="${LAUNCH_MODE:-both}"
+LAUNCH_MODE="${LAUNCH_MODE:-bot}"
 
 if [ "$FIRST_RUN" = "1" ]; then
     echo ""
@@ -95,14 +95,6 @@ if [ "$FIRST_RUN" = "1" ]; then
     echo "    - Closed tickets category"
     echo "    - Custom panel title and description"
     echo ""
-    if [ "$LAUNCH_MODE" != "bot" ]; then
-        echo "  STEP 3 -- Access the web dashboard"
-        echo "  -------------------------------------------------"
-        echo "  Open in your browser:"
-        echo "    http://<your-node-address>:${PORT:-2000}"
-        echo "  e.g. http://free-01.kovaihost.cloud:${PORT:-2000}"
-        echo ""
-    fi
     echo "  USEFUL COMMANDS (run in your Discord server):"
     echo "    /setup start    -- Configure the ticket system"
     echo "    /setup view     -- View current configuration"
@@ -126,10 +118,6 @@ fi
 # ---------------------------------------------------------------------------
 echo "============================================================"
 echo " Launch mode : ${LAUNCH_MODE}"
-if [ "$LAUNCH_MODE" != "bot" ]; then
-    echo " Web UI port : ${PORT:-2000}"
-    echo " Access URL  : http://<node-alias>:${PORT:-2000}"
-fi
 echo "============================================================"
 
 # ---------------------------------------------------------------------------
