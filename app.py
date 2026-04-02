@@ -100,9 +100,10 @@ def run_bot():
 def run_flask():
     """Run the Flask web UI."""
     logger.info(f"Starting Flask web UI on port {FLASK_PORT}...")
-    app = create_app()
-    app.config["JSON_SORT_KEYS"] = False
+    logger.info(f"Web dashboard will be available at: http://0.0.0.0:{FLASK_PORT}")
     try:
+        app = create_app()
+        app.config["JSON_SORT_KEYS"] = False
         app.run(
             host="0.0.0.0",
             port=FLASK_PORT,
@@ -111,7 +112,9 @@ def run_flask():
                                  # and would restart the bot thread too.
         )
     except Exception as e:
-        logger.error(f"Flask error: {e}")
+        logger.error(f"Flask failed to start: {e}")
+        logger.error("Web dashboard is unavailable. Check port allocation and env vars.")
+        os._exit(1)  # Kill the whole process so Pterodactyl shows the failure clearly.
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -122,6 +125,7 @@ def main():
     logger.info(f"Launch mode : {LAUNCH_MODE}")
     if LAUNCH_MODE in ("both", "web"):
         logger.info(f"Flask port  : {FLASK_PORT}")
+        logger.info(f"Access URL  : http://<your-node-address>:{FLASK_PORT}")
     logger.info("=" * 60)
 
     threads = []
@@ -131,7 +135,8 @@ def main():
         threads.append(t)
 
     if LAUNCH_MODE in ("both", "web"):
-        t = threading.Thread(target=run_flask, name="flask-web", daemon=True)
+        # Non-daemon so a Flask crash is visible rather than silently swallowed.
+        t = threading.Thread(target=run_flask, name="flask-web", daemon=False)
         threads.append(t)
 
     for t in threads:
