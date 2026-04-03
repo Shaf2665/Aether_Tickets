@@ -32,7 +32,7 @@ A Discord ticket bot built with Python and discord.py, with a Flask web dashboar
 Choose the method that fits your setup:
 
 - **[Option A — Pterodactyl Panel](#option-a--pterodactyl-panel)** — Recommended for most users. Import the egg, fill in your bot token, done.
-- **[Option B — VPS / Local Server](#option-b--vps--local-server)** — Clone the repo and run with Python directly.
+- **[Option B — VPS / Local Server](#option-b--vps--local-server)** — Use the interactive installer script (recommended) or set up manually.
 
 ---
 
@@ -115,24 +115,56 @@ Just **Restart** the server. If **Auto Update** is enabled, the latest code is p
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- Git
-- A Discord bot token (see below)
+- Python 3.10 or higher (`python3 --version`)
+- `pip` and `git`
+- A Discord bot token (see [Step 1](#step-1--create-a-discord-bot) below)
+- For SSL: a domain name pointed at your server's IP, and ports 80 + 443 open in your firewall
 
-### Step 1 — Clone the Repository
+---
+
+### Recommended: Interactive Installer
+
+The installer script handles everything in one go — cloning, `.env` creation, dependency install, optional Nginx reverse proxy, and free SSL via Certbot.
+
+**Clone and run:**
 
 ```bash
 git clone https://github.com/Shaf2665/Aether_Tickets.git
 cd Aether_Tickets
+chmod +x scripts/vps-production-install.sh
+./scripts/vps-production-install.sh
 ```
 
-### Step 2 — Install Dependencies
+Or, if you want the script to clone the repo for you, download and run it directly:
 
 ```bash
-pip install -r requirements.txt
+curl -fsSL https://raw.githubusercontent.com/Shaf2665/Aether_Tickets/main/scripts/vps-production-install.sh -o install.sh
+chmod +x install.sh
+./install.sh
 ```
 
-### Step 3 — Create a Discord Bot
+**The script will walk you through:**
+
+| Step | What it does |
+|---|---|
+| 1 — Directory | Use current repo, clone automatically, or point at an existing checkout |
+| 2 — Launch mode | `both` (bot + web UI), `bot` only, or `web` only |
+| 3 — Discord bot | Bot token, optional Guild ID, category/role/channel IDs |
+| 4 — Web dashboard | OAuth Client ID & Secret, redirect URI, Flask secret key, port |
+| 5 — Write `.env` | Writes and `chmod 600`s the config file |
+| 6 — Dependencies | Creates a `.venv` and installs `requirements.txt` |
+| 7 — SSL (optional) | Installs Nginx + Certbot, obtains a Let's Encrypt certificate, configures auto-renewal, and patches `.env` with `BEHIND_PROXY=true` and the `https://` redirect URI |
+
+At the end the script prints the exact redirect URI to add in the Discord Developer Portal, the dashboard URL, and a ready-to-paste systemd unit.
+
+> **Have ready before running:**
+> - Bot token — Developer Portal → Your App → Bot → Reset Token
+> - For web UI: OAuth2 Client ID and Client Secret — Developer Portal → OAuth2 → General
+> - For SSL: a domain (e.g. `tickets.example.com`) already pointing at this server
+
+---
+
+### Step 1 — Create a Discord Bot
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
 2. Go to the **Bot** tab → **Reset Token** → copy the token.
@@ -145,68 +177,61 @@ pip install -r requirements.txt
    - Permissions: `Manage Channels`, `Manage Roles`, `Send Messages`, `View Channels`, `Read Message History`, `Embed Links`, `Manage Messages`
 5. Open the generated URL and invite the bot to your server.
 
-### Step 4 — Configure Environment Variables
+### Step 2 — Configure the Ticket System
 
-Copy the example file and edit it:
+In your Discord server, run `/setup start` and follow the prompts (same as Pterodactyl Step 7 above).
 
+---
+
+### Manual Setup (without the installer)
+
+If you prefer to configure everything by hand:
+
+**Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**Create `.env`:**
 ```bash
 cp env.example.txt .env
+# Edit .env and fill in at minimum DISCORD_BOT_TOKEN
 ```
 
-Minimum required for **bot only**:
+> For the **web dashboard** variables (`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, etc.) see [FLASK_SETUP.md](FLASK_SETUP.md).
 
-```env
-DISCORD_BOT_TOKEN=your_bot_token_here
-```
-
-Optional — for faster slash command sync during development:
-
-```env
-GUILD_ID=your_server_id_here
-```
-
-> For the **web dashboard**, see [FLASK_SETUP.md](FLASK_SETUP.md) for the additional variables needed.
-
-### Step 5 — Run the Bot
-
-**Bot only:**
+**Run:**
 ```bash
-python bot.py
-```
+# Bot only
+LAUNCH_MODE=bot python app.py
 
-**Bot + Web Dashboard together:**
-```bash
+# Bot + Web Dashboard (default)
 python app.py
 ```
 
-You should see output like:
+You should see:
 ```
 [BotName] has logged in!
 ```
-
-Keep the terminal open (or use a process manager like `systemd`, `pm2`, or `screen`).
-
-### Step 6 — Configure the Ticket System
-
-In your Discord server, run `/setup start` and follow the prompts (same as Pterodactyl Step 7 above).
 
 ### Keeping the Bot Running (VPS)
 
 Use a process manager so the bot restarts automatically:
 
-**systemd (recommended for Linux VPS):**
+**systemd (recommended):**
 
 ```ini
 # /etc/systemd/system/aether-tickets.service
 [Unit]
-Description=Aether Tickets Bot
+Description=Aether Tickets
 After=network.target
 
 [Service]
 User=youruser
 WorkingDirectory=/path/to/Aether_Tickets
-ExecStart=/usr/bin/python3 bot.py
-Restart=always
+ExecStart=/path/to/Aether_Tickets/.venv/bin/python app.py
+EnvironmentFile=/path/to/Aether_Tickets/.env
+Restart=on-failure
 RestartSec=5
 
 [Install]
@@ -221,7 +246,7 @@ sudo systemctl start aether-tickets
 **Updating (VPS):**
 ```bash
 git pull
-pip install -U -r requirements.txt
+.venv/bin/pip install -U -r requirements.txt
 sudo systemctl restart aether-tickets
 ```
 
@@ -298,6 +323,9 @@ Aether_Tickets/
 ├── egg-aether-tickets.json   # Pterodactyl egg (import this into your panel)
 ├── env.example.txt           # Example .env for local/VPS setup
 │
+├── scripts/
+│   └── vps-production-install.sh  # Interactive VPS installer (SSL, Nginx, .env)
+│
 ├── commands/
 │   ├── ticket.py             # /ticket /close /claim /unclaim /ticketstats /delete
 │   ├── setup.py              # /setup start|view|reset|refresh
@@ -335,6 +363,12 @@ Aether_Tickets/
 ### Web dashboard OAuth fails
 - Ensure `DISCORD_REDIRECT_URI` in your `.env` exactly matches the redirect URI added in the Discord Developer Portal.
 - On HTTP (no SSL), make sure `FORCE_HTTPS` and `BEHIND_PROXY` are not set to `true`.
+
+### SSL / Certbot errors during install
+- Ensure your domain's DNS A record points to this server's IP **before** running the installer — Let's Encrypt validates via HTTP.
+- Ports 80 and 443 must be open in your firewall/security group (`ufw allow 80 && ufw allow 443`).
+- If Certbot fails, you can re-run just the SSL step manually: `sudo certbot --nginx -d your-domain.com`.
+- After fixing SSL, update `.env` manually: set `BEHIND_PROXY=true` and change `DISCORD_REDIRECT_URI` to `https://your-domain.com/auth/callback`.
 
 ### Pterodactyl — server stuck on "Installing"
 - Check the installation log in the panel for errors.
